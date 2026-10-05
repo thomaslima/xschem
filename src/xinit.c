@@ -196,7 +196,7 @@ static int window_state (Display *disp, Window win, char *arg) {/*{{{*/
 /* used to set icon */
 void windowid(const char *win_path)
 {
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
   int i;
 #endif
   Display *display;
@@ -223,7 +223,7 @@ void windowid(const char *win_path)
   if (framewin_child_ptr!=NULL)
     XFree(framewin_child_ptr);
   /* here I create the icon pixmap,to be used when iconified,  */
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
   (void) i; /* necessary since in optimized code (-O2 compiler flag) dbg() is wiped out */
   if(!cad_icon_pixmap) {
     i=XpmCreatePixmapFromData(display,framewin, cad_icon,&cad_icon_pixmap, &cad_icon_mask, NULL);
@@ -242,7 +242,7 @@ void windowid(const char *win_path)
 static int err(Display *display, XErrorEvent *xev)
 {
  int l=250;
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
  char s[1024];  /* overflow safe 20161122 */
  XGetErrorText(display, xev->error_code, s,l);
  dbg(1, ("err(): Err %d :%s maj=%d min=%d\n", xev->error_code, s, xev->request_code,
@@ -253,7 +253,7 @@ static int err(Display *display, XErrorEvent *xev)
 
 static unsigned int  find_best_color(char colorname[])
 {
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
  int i;
  double distance=10000000000.0, dist, r, g, b, red, green, blue;
  double deltar,deltag,deltab;
@@ -990,7 +990,7 @@ static void xwin_exit(void)
  delete_schematic_data(1);
  if(has_x) {
    Tk_DestroyWindow(mainwindow);
-   #ifdef __unix__
+   #if defined(__unix__) && !defined(XSCHEM_AQUA)
    if(cad_icon_pixmap) {
      XFreePixmap(display, cad_icon_pixmap);
      XFreePixmap(display, cad_icon_mask);
@@ -998,7 +998,7 @@ static void xwin_exit(void)
    #else
    if (cad_icon_pixmap) Tk_FreePixmap(display, cad_icon_pixmap);
    #endif
-   #ifdef __unix__
+   #if defined(__unix__) && !defined(XSCHEM_AQUA)
    for(i = 0; i < cadlayers; ++i) XFreePixmap(display,pixmap[i]);
    #else
    for(i = 0; i < cadlayers; ++i) Tk_FreePixmap(display, pixmap[i]);
@@ -1119,7 +1119,7 @@ int build_colors(double dim, double dim_bg)
       XSetForeground(display, xctx->gcstipple[i], xctx->color_index[i]);
     }
     if(has_x) for(i=0;i<cadlayers; ++i) {
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
       XLookupColor(display, colormap, xctx->color_array[i], &xcolor_exact, &xcolor);
       xctx->xcolor_array[i] = xcolor;
 #else
@@ -1167,7 +1167,7 @@ void set_clip_mask(int what)
     #endif
   }
 }
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
 /* moved here to avoid Xorg-specific calls in move.c */
 int pending_events(void)
 {
@@ -2919,7 +2919,10 @@ static void resetcairo(int create, int clear, int force_or_resize)
     cairo_font_options_set_antialias(options, CAIRO_ANTIALIAS_FAST);
     cairo_font_options_set_hint_style(options, CAIRO_HINT_STYLE_SLIGHT);
     /***** Create Cairo save buffer drawing area *****/
-    #ifdef __unix__
+    #if defined(XSCHEM_AQUA)
+    xctx->cairo_save_sfc = aqua_pixmap_surface(xctx->save_pixmap,
+         xctx->xrect[0].width, xctx->xrect[0].height);
+    #elif defined(__unix__)
     xctx->cairo_save_sfc = cairo_xlib_surface_create(display, xctx->save_pixmap,
          visual, xctx->xrect[0].width, xctx->xrect[0].height);
     dbg(1, ("resetcairo: create cairo_save_sfc: %d %d\n", xctx->xrect[0].width, xctx->xrect[0].height));
@@ -2942,7 +2945,12 @@ static void resetcairo(int create, int clear, int force_or_resize)
     cairo_set_line_join(xctx->cairo_save_ctx, CAIRO_LINE_JOIN_ROUND);
     cairo_set_line_cap(xctx->cairo_save_ctx, CAIRO_LINE_CAP_ROUND);
     /***** Create Cairo main drawing window structures *****/
-    #ifdef __unix__
+    #if defined(XSCHEM_AQUA)
+    /* cairo draws "on the window" through its front buffer */
+    aqua_front_sync(xctx->window);
+    xctx->cairo_sfc = aqua_pixmap_surface(aqua_drawable(xctx->window),
+        xctx->xrect[0].width, xctx->xrect[0].height);
+    #elif defined(__unix__)
     xctx->cairo_sfc = cairo_xlib_surface_create(display, xctx->window, visual,
         xctx->xrect[0].width, xctx->xrect[0].height);
     #else
@@ -2975,6 +2983,8 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
     #ifndef __unix__
     HWND hwnd = Tk_GetHWND(xctx->window);
     RECT rct;
+    #elif defined(XSCHEM_AQUA)
+    Tk_Window tkwin = Tk_IdToWindow(display, xctx->window);
     #else
     XWindowAttributes wattr;
     #endif
@@ -2985,7 +2995,13 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
       height = h;
       status = 1;
     } else {
-      #ifdef __unix__
+      #if defined(XSCHEM_AQUA)
+      status = tkwin ? 1 : 0;
+      if(status) {
+        width = Tk_Width(tkwin);
+        height = Tk_Height(tkwin);
+      }
+      #elif defined(__unix__)
       status = XGetWindowAttributes(display, xctx->window, &wattr);
       if(status) {
         width = wattr.width;
@@ -3021,7 +3037,7 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
         xctx->xrect[0].height = (unsigned short) height;
         if(clear_pixmap) {
           resetcairo(0, 1, 1); /* create, clear, force */
-          #ifdef __unix__
+          #if defined(__unix__) && !defined(XSCHEM_AQUA)
           XFreePixmap(display,xctx->save_pixmap);
           #else
           Tk_FreePixmap(display, xctx->save_pixmap);
@@ -3033,7 +3049,7 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
           XGCValues gcv;
           unsigned long gcvm;
 
-          #ifdef __unix__
+          #if defined(__unix__) && !defined(XSCHEM_AQUA)
           xctx->save_pixmap = XCreatePixmap(display, xctx->window,
              xctx->xrect[0].width, xctx->xrect[0].height, screendepth);
           #else
@@ -3077,6 +3093,16 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
     if(create_pixmap) create_memory_cairo_ctx(1);
   }
 }
+
+#ifdef XSCHEM_AQUA
+/* every drawing is done inside a xschem command: show its result when the command ends */
+static int xschem_and_present(ClientData clientdata, Tcl_Interp *interp, int argc, const char * argv[])
+{
+  int ret = xschem(clientdata, interp, argc, argv);
+  if(has_x) aqua_flush();
+  return ret;
+}
+#endif
 
 void tclmainloop(void)
 {
@@ -3506,7 +3532,11 @@ int Tcl_AppInit(Tcl_Interp *inter)
  /*                                */
  /* CREATE XSCHEM 'xschem' COMMAND */
  /*                                */
+ #ifdef XSCHEM_AQUA
+ Tcl_CreateCommand(interp, "xschem",   (myproc *) xschem_and_present, NULL, NULL);
+ #else
  Tcl_CreateCommand(interp, "xschem",   (myproc *) xschem, NULL, NULL);
+ #endif
 
  dbg(1, ("Tcl_AppInit(): done step a1 of xinit()\n"));
 
@@ -3568,6 +3598,9 @@ int Tcl_AppInit(Tcl_Interp *inter)
  change_lw=tclgetboolvar("change_lw");
  cadlayers=tclgetintvar("cadlayers");
  fix_broken_tiled_fill = tclgetboolvar("fix_broken_tiled_fill");
+ #ifdef XSCHEM_AQUA
+ fix_broken_tiled_fill = 1; /* no tiled fills in Aqua Tk */
+ #endif
  fix_mouse_coord = tclgetboolvar("fix_mouse_coord");
  my_snprintf(tmp, S(tmp), "%.16g",CADGRID);
  tclvareval("set_ne cadgrid ", tmp, NULL);
@@ -3607,6 +3640,9 @@ int Tcl_AppInit(Tcl_Interp *inter)
 
  my_strncpy(xctx->plotfile, cli_opt_plotfile, S(xctx->plotfile));
  xctx->draw_window = tclgetintvar("draw_window");
+ #ifdef XSCHEM_AQUA
+ xctx->draw_window = 0; /* always draw on save_pixmap and copy to window */
+ #endif
  xctx->only_probes = tclgetintvar("only_probes");
  xctx->intuitive_interface = tclgetboolvar("intuitive_interface");
 
@@ -3731,7 +3767,7 @@ int Tcl_AppInit(Tcl_Interp *inter)
     dbg(1, ("Tcl_AppInit(): sizeof xInstance=%lu , sizeof xSymbol=%lu\n",
              (unsigned long) sizeof(xInstance),(unsigned long) sizeof(xSymbol)));
 
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
     dbg(1, ("Tcl_AppInit(): xserver max request size: %d\n",
                              (int)XMaxRequestSize(display)));
 #else

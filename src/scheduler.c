@@ -2362,7 +2362,7 @@ int xschem(ClientData clientdata, Tcl_Interp *interp, int argc, const char * arg
       my_snprintf(res, S(res), "XSCHEM_LIBRARY_PATH=%s\n",
         tclgetvar("XSCHEM_LIBRARY_PATH")); Tcl_AppendResult(interp, res, NULL);
 
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
       my_snprintf(res, S(res), "******* Xserver options: *******\n"); Tcl_AppendResult(interp, res, NULL);
       my_snprintf(res, S(res), "XMaxRequestSize=%ld\n", XMaxRequestSize(display));
       Tcl_AppendResult(interp, res, NULL);
@@ -2418,7 +2418,7 @@ int xschem(ClientData clientdata, Tcl_Interp *interp, int argc, const char * arg
     else if(!strcmp(argv[1], "grabscreen"))
     {
       if(!xctx) {Tcl_SetResult(interp, not_avail, TCL_STATIC); return TCL_ERROR;}
-      #if defined(__unix__) && HAS_CAIRO==1
+      #if defined(__unix__) && !defined(XSCHEM_AQUA) && HAS_CAIRO==1
       xctx->ui_state |= GRABSCREEN;
       tclvareval("grab set -global ", xctx->top_path, ".drw", NULL);
       #endif

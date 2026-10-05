@@ -4009,7 +4009,7 @@ static void handle_key_press(int event, KeySym key, int state, int rstate, int m
       if(state == 0) go_back(1); /* go up in hierarchy */
       break;
 
-#if defined(__unix__) && HAS_CAIRO==1
+#if defined(__unix__) && !defined(XSCHEM_AQUA) && HAS_CAIRO==1
     case XK_Print:
       xctx->ui_state |= GRABSCREEN;
       tclvareval(xctx->top_path, ".drw configure -cursor {}" , NULL);
@@ -4581,7 +4581,7 @@ static void update_statusbar(int persistent_command, int wire_draw_active)
   #ifndef __unix__
   short cstate = GetKeyState(VK_CAPITAL);
   short nstate = GetKeyState(VK_NUMLOCK);
-  #else
+  #elif !defined(XSCHEM_AQUA)
   XKeyboardState kbdstate;
   #endif
 
@@ -4606,6 +4606,9 @@ static void update_statusbar(int persistent_command, int wire_draw_active)
   } else { /* normal state */
     tclvareval(xctx->top_path, ".statusbar.8 configure -state  normal -text {}", NULL);
   }
+  #elif defined(XSCHEM_AQUA)
+  /* no lock keys state from the Aqua Tk Xlib emulation */
+  tclvareval(xctx->top_path, ".statusbar.8 configure -state  normal -text {}", NULL);
   #else
   XGetKeyboardControl(display, &kbdstate);
   if(kbdstate.led_mask & 1) { /* caps lock */
@@ -4805,7 +4808,7 @@ int callback(const char *win_path, int event, int mx, int my, KeySym key, int bu
 
   dbg(2, ("key=%d EQUAL_MODMASK=%d, SET_MODMASK=%d\n", key, SET_MODMASK, EQUAL_MODMASK));
 
-  #if defined(__unix__) && HAS_CAIRO==1
+  #if defined(__unix__) && !defined(XSCHEM_AQUA) && HAS_CAIRO==1
   if(xctx->ui_state & GRABSCREEN) {
     grabscreen(win_path, event, mx, my, key, button, aux, state);
   } else
@@ -4825,7 +4828,13 @@ int callback(const char *win_path, int event, int mx, int my, KeySym key, int bu
      break;
 
    case Expose:
+     #ifdef XSCHEM_AQUA
+     /* the front buffer never loses its content, just copy it to the window */
+     (void)handle_expose;
+     aqua_present(xctx->window);
+     #else
      handle_expose(mx,my,button,aux);
+     #endif
      break;
 
    case ConfigureNotify:
