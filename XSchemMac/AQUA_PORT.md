@@ -25,6 +25,7 @@ output. This guide is `XSchemMac/AQUA_PORT.md` and is not part of the code.
 7. [Testing](#7-testing)
 8. [Known limitations and behaviour differences](#8-known-limitations-and-behaviour-differences)
 9. [Questions for the maintainer](#9-questions-for-the-maintainer)
+10. [Future work: Tk 9](#10-future-work-tk-9)
 
 ---
 
@@ -57,8 +58,8 @@ Size of the patch, computed with `git diff --numstat c15c6c05` and `wc -l`:
 | C sources and header | `callback.c`, `draw.c`, `move.c`, `psprint.c`, `scheduler.c`, `xinit.c`, `xschem.h` | +189 / -46, of which +20 / -20 is the `draw.c` cast fix, so +169 / -26 for Aqua |
 | Tcl | `xschem.tcl` | +271 / -6: one delimited block of 251 lines (252 added lines with the blank line after it), 16 one- or two-line hooks, and the two `eval` lines of section 6 |
 | Build | `scconfig/hooks.c`, `Makefile.conf.in`, `src/Makefile.in` | +246 / -3 |
-| Documentation, ignore list | `README_MacOS.md`, `.gitignore` | +73 / -0 |
-| **Existing files, total** | **13** | **+779 / -55** |
+| Documentation, ignore list | `README_MacOS.md`, `.gitignore` | +97 / -0 |
+| **Existing files, total** | **13** | **+803 / -55** |
 
 | New file | Lines | Purpose |
 |---|---|---|
@@ -671,8 +672,10 @@ hooks are also inert in headless runs of the Aqua build.
 
 ### 4.8 `README_MacOS.md`
 
-A new first section, "Build instructions for macOS (native Aqua build)": prerequisites,
-`./configure --aqua`, `--aqua-tk`, running from `src/`, installing, and a pointer to the
+A new first section, "Build instructions for macOS (native Aqua build)": a note that the build
+belongs to this fork and was developed with an AI coding assistant, prerequisites (with
+Ghostscript for PDF export), `./configure --aqua`, `--aqua-tk`, running from `src/`, installing,
+and a pointer to the
 application bundle, described as intended to run on other Macs without Homebrew and verified
 so far only on the build machine with a scrubbed environment. The existing XQuartz
 instructions follow under a new heading, "X11 build with XQuartz", unchanged.
@@ -1005,7 +1008,9 @@ With what is in the patch:
 - Visual checks by hand: `XSCHEM_AQUA_SCALE=1` shows the 1x rendering for comparison.
 
 The GUI smoke test, the input test, the cast test program, the event-injection harness of
-section 7.5 and the window-capture helper are not part of the submission.
+section 7.5 and the window-capture helper are not part of the submission. On the fork, the
+smoke test, the window-capture helper and the debug build script are in `XSchemMac/devtools/`
+(its `README.md` explains how to run them).
 
 ### 7.4 Not verified
 
@@ -1204,7 +1209,7 @@ independent of the port and can be cherry-picked onto upstream on their own (che
    and `is_aqua` change in `src/`.
 5. `README_MacOS.md`.
 6. `XSchemMac/` and the `.gitignore` line.
-7. This guide and the fork-local GUI check tools.
+7. This guide and the fork-local GUI check tools (now `XSchemMac/devtools/`).
 
 Within commit 4 the display, input and menu parts interleave in the same files, so a finer
 split would need hunk-level surgery; section 4 walks through them by function instead.
@@ -1245,3 +1250,49 @@ overrides it, and the maintainer may prefer another default.
   `stroke-linecap:round` globally, so dashes have round caps, unlike the screen.
 - `./configure --debug` on macOS leaves `scconfig/scc_*.dSYM` directories behind (scconfig's
   test programs are built with `-g`), with or without `--aqua`.
+
+## 10. Future work: Tk 9
+
+The port targets Tk 8.6 (Homebrew `tcl-tk@8`). Tk 9 support is planned once the Tk 8.6
+version has been in use for a while; until then `--aqua` looks only for `tcl-tk@8`, and Tk 9
+is reached only through `--aqua-tk=<prefix>` (`XSchemMac/devtools/build.sh 9`).
+
+**What exists for Tk 9.** `find_aqua()` in `scconfig/hooks.c` reads the Tk 9 library names
+from `tclConfig.sh` and `tkConfig.sh` and adds `-Dinline=__inline__` for Tcl 9, whose `tcl.h`
+uses `inline`, which is not a C89 keyword. `aqua.h` defines its own `XDrawRectangles`,
+`XDrawArcs` and `XFillArcs` only for Tk 8.6 and redirects Tk 9's. The current code has not
+been built or run against Tk 9 (section 7.4).
+
+**What an early version of the port showed on Tk 9.1.0.** Before the display model of
+section 3.2 was written, an early version built and ran against Homebrew `tcl-tk` 9.1.0, on
+the machine of section 7.1:
+
+- Worked: the build, headless netlisting (netlists identical to the Tk 8.6 build), Xlib
+  drawing and cairo text into pixmaps (`xschem print png` was correct), and drawing directly
+  on the window at any time, which Tk 8.6 does not allow (section 3.1). Pointer-motion
+  handling was about five times faster: 100 pointer moves in about 0.15 s, against 0.7 to
+  1.2 s on Tk 8.6 with the same version.
+- Broken: the canvas stayed black. Tk 9.1's `XCopyArea()` (rewritten in
+  `macosx/tkMacOSXImage.c`) takes the source size from the source's `NSView`, which a pixmap
+  does not have, so it returns `BadDrawable` (9) for every copy from a pixmap; the Tk source
+  marks the case with `// XXXX Need to deal with pixmaps!`. xschem displays by copying
+  pixmaps to the window, so nothing reached the screen and rubber bands were never erased.
+
+**Why the current code may avoid that failure.** The current display path no longer relies on
+Tk's `XCopyArea()` for its own buffers: `aqua_copy_area()` copies between registered pixmaps
+with cairo, and `draw_front()` draws the front buffer into the window as a `CGImage` during
+AppKit's redraw (section 3.2). `aqua_copy_area()` still falls back to Tk's `XCopyArea()` when
+either drawable is not a registered pixmap; on Tk 9.1 that fallback fails if the source is a
+pixmap.
+
+**Steps to take.**
+
+1. Build with `XSchemMac/devtools/build.sh 9` and run `smoke.tcl`
+   (`XSchemMac/devtools/README.md`); compare its captures with the Tk 8.6 build.
+2. Find out which copies reach the `XCopyArea()` fallback, and whether a Tk 9 release later
+   than 9.1.0 handles pixmap sources.
+3. Simplify for Tk 9: `Tk_MacOSXGetCGContextForDrawable()` is exported there, so the stubs
+   lookup in `aqua_init()` is needed only for Tk 8.6. The Tk package is named `tk`, in lower
+   case, under Tcl 9. Check that the Homebrew Tk 9 keg still installs `tkInt.h` (section 9.3).
+4. Rerun the checks of section 7.2 on Tk 9, then decide which Tk the build recommends and
+   whether `--aqua` should look for `tcl-tk` as well as `tcl-tk@8`.

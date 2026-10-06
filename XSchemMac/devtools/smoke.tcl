@@ -1,19 +1,19 @@
 # GUI smoke test for the Aqua build: drives xschem with synthetic events and lets the
 # application capture its own windows (no Screen Recording permission involved).
-# Usage, from src/, outside the Claude Code sandbox (a GUI needs the window server):
+# Usage, from src/, outside any sandbox that blocks the window server (a GUI needs it):
 #   clang -dynamiclib -fobjc-arc -I/opt/homebrew/opt/tcl-tk@8/include/tcl-tk \
-#         ../plans/macos-aqua-tools/grab.m -undefined dynamic_lookup \
+#         ../XSchemMac/devtools/grab.m -undefined dynamic_lookup \
 #         -framework Cocoa -framework ImageIO -o $OUT/grab.dylib
 #   OUT=<dir> perl -e 'alarm 60; exec @ARGV' ./xschem \
 #         --preinit "set XSCHEM_TMP_DIR <dir>; set xschem_execute_scripts 0" \
-#         -r --script ../plans/macos-aqua-tools/smoke.tcl ../xschem_library/examples/cmos_inv.sch
+#         -r --script ../XSchemMac/devtools/smoke.tcl ../xschem_library/examples/cmos_inv.sch
 # (build grab.dylib with the headers of the Tcl/Tk the xschem binary is linked to)
 # Optional environment:
 #   SMOKE=quick          only the static, rubber band, move and load steps
 # The full run also checks stippled fills, the crosshair and the file dialog preview pane.
 #   SMOKE_WINDOWS=1      open and close a second window (start with
 #                        --preinit "...; set tabbed_interface 0"), otherwise a second tab
-#   XSCHEM_AQUA_SCALE=1  (read by xschem) draw at 1x as the spike did: the failure
+#   XSCHEM_AQUA_SCALE=1  (read by xschem) draw at 1x as an early version of the port did: the failure
 #                        signature for the crispness check
 # Writes $OUT/report.txt and $OUT/shotN_*.png (captured at the native resolution of the
 # display). Each check prints PASS or FAIL; a script error ends the run with a FAIL line.

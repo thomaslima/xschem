@@ -1,6 +1,18 @@
 # Build instructions for macOS (native Aqua build)
+
+> **Experimental fork.** The native macOS build exists only in
+> [thomaslima/xschem](https://github.com/thomaslima/xschem), my personal fork of
+> [xschem](https://github.com/StefanSchippers/xschem). It is not part of upstream xschem and is
+> not supported by its maintainer, so please report problems with it on this fork, not
+> upstream. The port was developed with extensive help from an AI coding assistant (Claude
+> Code). I directed the work, reviewed it and tested it on my own Mac, but much of the code
+> and documentation was written by the assistant. For that reason it is not offered upstream
+> as a pull request (see upstream's `CONTRIBUTING_AI_POLICY.md`).
+> — Thomas Ferreira de Lima
+
 The native build draws through Tk's macOS (Aqua) backend. It needs neither XQuartz nor an
-X11 library, and all libraries come from Homebrew.
+X11 library, and all libraries come from Homebrew. `XSchemMac/AQUA_PORT.md` explains how it
+works, what was tested and what is known not to work.
 
 ## Prerequisites
 Install the Xcode command line tools (`xcode-select --install`) and Homebrew (https://brew.sh),
@@ -13,10 +25,19 @@ brew install tcl-tk@8 cairo jpeg-turbo bison
 Tcl/Tk 8.6 (`tcl-tk@8`) is required. Homebrew's `bison` is needed because the bison shipped
 with macOS (2.3) is too old; it does not have to be on `PATH`.
 
+PDF export runs Ghostscript's `ps2pdf` to convert xschem's PostScript output. It is not needed
+to build xschem, only at run time:
+
+```
+brew install ghostscript
+```
+
+Without it, PDF export shows a dialog saying so and keeps the PostScript file.
+
 ## xschem compilation
 
 ```
-git clone https://github.com/StefanSchippers/xschem.git
+git clone https://github.com/thomaslima/xschem.git
 cd xschem
 ./configure --aqua
 make
