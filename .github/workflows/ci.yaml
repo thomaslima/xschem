@@ -114,7 +114,7 @@ jobs:
 
         **\`$dmg\`** holds a self-contained \`Xschem.app\` (Tcl/Tk, cairo and their libraries inside; no Homebrew or XQuartz needed). It needs macOS $MIN_MACOS or later on $ARCH.
 
-        - The app is signed ad hoc, not notarized: on first launch macOS refuses to open it until you click Open Anyway in System Settings > Privacy & Security, or run \`xattr -dr com.apple.quarantine /Applications/Xschem.app\`. See [Giving the app to someone else](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/XSchemMac/README.md#giving-the-app-to-someone-else).
+        - The app is signed ad hoc, not notarized: on first launch macOS refuses to open it until you click Open Anyway in System Settings > Privacy & Security, or run \`xattr -dr com.apple.quarantine /Applications/Xschem.app\`. Steps in [Download the app](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/README_MacOS.md#download-the-app).
         - PDF export needs Ghostscript (\`brew install ghostscript\`).
         - To build from source with Homebrew instead: \`brew install thomaslima/tap/xschem-mac\` ([README_MacOS.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/README_MacOS.md)).
         EOF
