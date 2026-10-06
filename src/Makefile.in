@@ -18,11 +18,17 @@ put /local/install_shares {
  ngspice_backannotate.tcl gschemtoxschem.awk mouse_bindings.tcl cadence_style_rc
  place_sym_pins.tcl place_pins.tcl make_sch_from_spice.awk make_sym_from_spice.awk
 }
+if /local/xschem/aqua then
+  append /local/install_shares {xschem_terminal.sh}
+end
 
 # generate a list of objects from the list of source files
 put /local/obj [@@/local/src@ @]
 gsub /local/obj {\n} { }
 gsub /local/obj {[.]c } {.o }
+if /local/xschem/aqua then
+  append /local/obj {aqua.o} {}
+end
 
 print [&
 ###############################################################
@@ -47,7 +53,7 @@ parselabel.c: parselabel.l expandlabel.h
 	flex -l -oparselabel.c  parselabel.l
 
 expandlabel.c: expandlabel.y
-	bison -d -o expandlabel.c  expandlabel.y
+	&/local/xschem/bison& -d -o expandlabel.c  expandlabel.y
 
 # expandlabel.h can not be put as a second target next to expanlabel.c,
 # a parallel build (make -j..) will run one bison process per target and
@@ -57,7 +63,7 @@ expandlabel.h: expandlabel.c
 	@:
 
 eval_expr.c: eval_expr.y
-	bison -p kk -o eval_expr.c eval_expr.y
+	&/local/xschem/bison& -p kk -o eval_expr.c eval_expr.y
 
 parselabel.o: expandlabel.h
 
@@ -75,6 +81,14 @@ foreach /local/n in /local/src
 	print [@
 @/local/o@: @/local/n@
 	$(CC) -c $(CFLAGS) -o @/local/o@ @/local/n@
+@]
+end
+if /local/xschem/aqua then
+  print [@
+aqua.o: aqua.m
+	$(CC) -c $(OBJCFLAGS) -o aqua.o aqua.m
+
+$(OBJ): aqua.h
 @]
 end
 print [@
