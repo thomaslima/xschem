@@ -61,7 +61,9 @@ the Finder or the Dock. To show it in Applications:
 ln -sf "$(brew --prefix)/opt/xschem-mac/Xschem.app" /Applications/Xschem.app
 ```
 
-The link goes through Homebrew's `opt` directory, so it keeps working across upgrades.
+The link goes through Homebrew's `opt` directory, so it keeps working across upgrades. If
+`/Applications/Xschem.app` is already a folder (for example a copy from the release disk
+image), move it to the Trash first; otherwise `ln` puts the link inside that folder.
 `brew install --HEAD thomaslima/tap/xschem-mac` builds the latest `main` instead of the last
 release. The rest of this section builds the same thing by hand.
 
