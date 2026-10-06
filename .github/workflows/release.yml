@@ -1,0 +1,94 @@
+name: Release
+
+# Publishes Xschem.app as a disk image on a GitHub Release, for a pushed v* tag or when
+# run by hand (Actions > Release > Run workflow). Run by hand, an existing tag is built as
+# it is; a new tag is created at the commit of the branch the run was started from.
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag, for example v3.4.8RC-mac.3 (created on the selected branch if it does not exist)
+        required: true
+        type: string
+
+jobs:
+  resolve:
+
+    runs-on: ubuntu-latest
+
+    name: Resolve the tag
+
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.tag.outputs.sha }}
+
+    steps:
+    - name: Check the tag and find its commit
+      id: tag
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+      run: |
+        case $TAG in
+          v[0-9]*) ;;
+          *) echo "::error::tag '$TAG' does not start with v and a digit"; exit 1 ;;
+        esac
+        if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          echo "::error::release $TAG already exists"; exit 1
+        fi
+        if sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$TAG" --jq .sha 2> /dev/null); then
+          echo "tag $TAG exists at $sha"
+        else
+          sha=$GITHUB_SHA
+          echo "tag $TAG does not exist; it will be created at $sha ($GITHUB_REF_NAME)"
+        fi
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  app:
+    needs: resolve
+    uses: ./.github/workflows/macos-app.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  release:
+
+    needs: [ resolve, app ]
+
+    runs-on: ubuntu-latest
+
+    name: GitHub Release
+
+    permissions:
+      contents: write
+
+    steps:
+    - name: Download Xschem.dmg
+      uses: actions/download-artifact@v4
+      with:
+        name: Xschem-macOS
+    - name: Publish the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TAG: ${{ needs.resolve.outputs.tag }}
+        SHA: ${{ needs.resolve.outputs.sha }}
+        MIN_MACOS: ${{ needs.app.outputs.min_macos }}
+        ARCH: ${{ needs.app.outputs.arch }}
+      run: |
+        dmg="Xschem-${TAG#v}-$ARCH.dmg"
+        mv Xschem.dmg "$dmg"
+        cat > notes.md <<EOF
+        Native macOS (Aqua Tk) build of xschem from this experimental fork; not supported by upstream xschem.
+
+        **\`$dmg\`** holds a self-contained \`Xschem.app\` (Tcl/Tk, cairo and their libraries inside; no Homebrew or XQuartz needed). It needs macOS $MIN_MACOS or later on $ARCH.
+
+        - The app is signed ad hoc, not notarized: on first launch macOS refuses to open it until you click Open Anyway in System Settings > Privacy & Security, or run \`xattr -dr com.apple.quarantine /Applications/Xschem.app\`. Steps in [Download the app](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/README_MacOS.md#download-the-app).
+        - PDF export needs Ghostscript (\`brew install ghostscript\`).
+        - To build from source with Homebrew instead: \`brew install thomaslima/tap/xschem-mac\` ([README_MacOS.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/README_MacOS.md)).
+        EOF
+        # --target only applies when the tag does not exist yet
+        gh release create "$TAG" "$dmg" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+          --title "xschem-mac ${TAG#v}" --notes-file notes.md

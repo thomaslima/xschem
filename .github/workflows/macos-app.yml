@@ -1,0 +1,70 @@
+name: macOS app bundle
+
+# Builds and checks the native (Aqua Tk) Xschem.app and uploads it as the Xschem-macOS
+# artifact (a disk image). Called by ci.yaml for every push and pull request, and by
+# release.yml for releases.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit, branch or tag to build; empty builds the commit of the calling run
+        type: string
+        default: ''
+    outputs:
+      min_macos:
+        description: LSMinimumSystemVersion of the bundle
+        value: ${{ jobs.macos.outputs.min_macos }}
+      arch:
+        description: Architecture of the bundled binary
+        value: ${{ jobs.macos.outputs.arch }}
+
+jobs:
+  macos:
+
+    runs-on: macos-latest
+
+    name: macOS app bundle (Aqua Tk)
+
+    outputs:
+      min_macos: ${{ steps.bundle.outputs.min_macos }}
+      arch: ${{ steps.bundle.outputs.arch }}
+
+    steps:
+    - name: Install dependencies
+      run: brew install tcl-tk@8 cairo jpeg-turbo bison
+    - name: Checkout source
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref }}
+    - name: configure
+      run: ./configure --aqua
+    - name: make
+      run: make
+    - name: Headless netlist
+      run: |
+        mkdir -p "$RUNNER_TEMP/netlist"
+        src/xschem -x -q -r -s -n -o "$RUNNER_TEMP/netlist" xschem_library/examples/cmos_inv.sch
+        test -s "$RUNNER_TEMP/netlist/cmos_inv.spice"
+    - name: Build Xschem.app
+      run: sh XSchemMac/make_app.sh
+    - name: Verify the bundle
+      id: bundle
+      run: |
+        codesign --verify --deep --strict XSchemMac/build/Xschem.app
+        if otool -L XSchemMac/build/Xschem.app/Contents/MacOS/xschem-bin | grep -E '/opt/homebrew|/usr/local|/opt/local'; then
+          echo "::error::the bundled binary references build-machine libraries (listed above)"; exit 1
+        fi
+        XSchemMac/build/Xschem.app/Contents/MacOS/xschem -x -q -r -s -n -o "$RUNNER_TEMP/bundle" xschem_library/examples/cmos_inv.sch
+        cmp "$RUNNER_TEMP/netlist/cmos_inv.spice" "$RUNNER_TEMP/bundle/cmos_inv.spice"
+        echo "min_macos=$(plutil -extract LSMinimumSystemVersion raw XSchemMac/build/Xschem.app/Contents/Info.plist)" >> "$GITHUB_OUTPUT"
+        echo "arch=$(lipo -archs XSchemMac/build/Xschem.app/Contents/MacOS/xschem-bin)" >> "$GITHUB_OUTPUT"
+    # a disk image keeps the bundle's symlinks and permissions, which upload-artifact's own
+    # zip would drop, and opens with one click after GitHub's artifact zip is extracted
+    - name: Make a disk image
+      run: hdiutil create -volname Xschem -srcfolder XSchemMac/build/Xschem.app -format UDZO -ov Xschem.dmg
+    - name: Archive Xschem.dmg
+      uses: actions/upload-artifact@v4
+      with:
+        name: Xschem-macOS
+        path: Xschem.dmg
