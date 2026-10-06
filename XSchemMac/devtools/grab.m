@@ -1,4 +1,4 @@
-/* spike-only helper: lets the app capture its own windows (no Screen Recording permission needed)
+/* test-only helper, never installed or bundled: lets the app capture its own windows (no Screen Recording permission needed)
  *   grabwin prefix ?nominal?
  * Writes prefix_N.png for each visible window, at the native (backing store) resolution,
  * or at one pixel per point with 'nominal'. Returns title:method:status:path:WxH entries. */
