@@ -25,6 +25,7 @@ jobs:
         mkdir -p ~/.apt-cache
         sudo apt-get update
         sudo apt-get -o Dir::Cache::archives=$HOME/.apt-cache install -y flex bison gawk tcl tcl-dev tk tk-dev libcairo2 libcairo2-dev xcb libxcb1 libxcb1-dev libxrender-dev libxpm-dev libxcb-render0-dev libx11-xcb1 libx11-xcb-dev
+        sudo rm -rf ~/.apt-cache/lock ~/.apt-cache/partial
     - name: configure
       run: ./configure
     - name: make
