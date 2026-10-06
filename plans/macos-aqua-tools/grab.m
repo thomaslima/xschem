@@ -1,4 +1,7 @@
-/* spike-only helper: lets the app capture its own windows (no Screen Recording permission needed) */
+/* spike-only helper: lets the app capture its own windows (no Screen Recording permission needed)
+ *   grabwin prefix ?nominal?
+ * Writes prefix_N.png for each visible window, at the native (backing store) resolution,
+ * or at one pixel per point with 'nominal'. Returns title:method:status:path:WxH entries. */
 #import <Cocoa/Cocoa.h>
 #import <ImageIO/ImageIO.h>
 #include <dlfcn.h>
@@ -17,7 +20,8 @@ static int writePNG(CGImageRef img, NSString *path) {
 }
 
 static int GrabCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
-  if (objc != 2) { Tcl_WrongNumArgs(interp, 1, objv, "prefix"); return TCL_ERROR; }
+  if (objc != 2 && objc != 3) { Tcl_WrongNumArgs(interp, 1, objv, "prefix ?nominal?"); return TCL_ERROR; }
+  int nominal = objc == 3 && !strcmp(Tcl_GetString(objv[2]), "nominal");
   NSString *prefix = [NSString stringWithUTF8String:Tcl_GetString(objv[1])];
   GrabFn grab = (GrabFn)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
   Tcl_Obj *res = Tcl_NewListObj(0, NULL);
@@ -26,17 +30,23 @@ static int GrabCmd(ClientData cd, Tcl_Interp *interp, int objc, Tcl_Obj *const o
     if (![w isVisible]) continue;
     NSString *path = [NSString stringWithFormat:@"%@_%d.png", prefix, i++];
     const char *how = "windowserver";
-    CGImageRef img = grab ? grab(CGRectNull, 1u << 3, (uint32_t)[w windowNumber], (1u << 0) | (1u << 4)) : NULL;
+    /* kCGWindowListOptionIncludingWindow, kCGWindowImageBoundsIgnoreFraming,
+     * kCGWindowImageNominalResolution */
+    CGImageRef img = grab ? grab(CGRectNull, 1u << 3, (uint32_t)[w windowNumber],
+                                 (1u << 0) | (nominal ? (1u << 4) : 0)) : NULL;
     int ok = 0;
-    if (img) { ok = writePNG(img, path); CGImageRelease(img); }
+    size_t pw = 0, ph = 0;
+    if (img) { pw = CGImageGetWidth(img); ph = CGImageGetHeight(img); ok = writePNG(img, path); CGImageRelease(img); }
     if (!ok) {
       NSView *v = [w contentView];
       NSBitmapImageRep *rep = [v bitmapImageRepForCachingDisplayInRect:[v bounds]];
       [v cacheDisplayInRect:[v bounds] toBitmapImageRep:rep];
+      pw = [rep pixelsWide]; ph = [rep pixelsHigh];
       ok = [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:path atomically:YES];
       how = "view-cache";
     }
-    Tcl_ListObjAppendElement(interp, res, Tcl_ObjPrintf("%s:%s:%s:%s", [[w title] UTF8String], how, ok ? "ok" : "FAILED", [path UTF8String]));
+    Tcl_ListObjAppendElement(interp, res, Tcl_ObjPrintf("%s:%s:%s:%s:%lux%lu", [[w title] UTF8String], how,
+                             ok ? "ok" : "FAILED", [path UTF8String], (unsigned long)pw, (unsigned long)ph));
   }
   Tcl_SetObjResult(interp, res);
   return TCL_OK;

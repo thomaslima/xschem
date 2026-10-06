@@ -210,9 +210,10 @@ already works on Tk 9.1, most of this phase is testing.
 
 In `plans/macos-aqua-tools/`:
 
-- `build.sh 8|9`: builds `src/xschem` against Homebrew Aqua Tk 8.6 or 9.x, with Homebrew
-  bison, cairo and jpeg-turbo. Run `./configure` once first (it only supplies `config.h`
-  and `src/Makefile`). Cleans automatically when the variant changes. Verified for both.
+- `build.sh 8|9 [make args]`: wrapper over `./configure --aqua --debug --aqua-tk=<Homebrew
+  tcl-tk@8 or tcl-tk>` and `make -C src xschem`. Reconfigures and cleans only when
+  `Makefile.conf` is not an Aqua build of the requested Tk. The normal build is
+  `./configure --aqua && make` (`README_MacOS.md`).
 - `grab.m`: tiny loadable Tcl extension adding `grabwin <prefix>`, which writes a PNG of each
   of the application's own windows. A process may capture its own windows without the Screen
   Recording permission, and the capture works when the window is unfocused or covered.
