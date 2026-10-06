@@ -134,8 +134,9 @@ XSchemMac/make_app.sh            # -> XSchemMac/build/Xschem.app
 See [XSchemMac/README.md](XSchemMac/README.md) for the bundle layout, signing and how to
 give the app to someone else.
 
-CI builds this bundle on every push and, for each `v*` tag, publishes it as a disk image on
-the Releases page (see "Download the app" above).
+CI builds this bundle on every push. The Release workflow publishes it as a disk image on the
+Releases page (see "Download the app" above); `XSchemMac/README.md` describes how to make a
+release.
 
 ---
 

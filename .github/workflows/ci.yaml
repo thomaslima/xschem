@@ -1,6 +1,10 @@
 name: CI checks
 
-on: [ push, pull_request ]
+# tags are built by release.yml
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
 
 jobs:
   build:
@@ -37,85 +41,4 @@ jobs:
         path: src/xschem
 
   macos:
-
-    runs-on: macos-latest
-
-    name: macOS app bundle (Aqua Tk)
-
-    outputs:
-      min_macos: ${{ steps.bundle.outputs.min_macos }}
-      arch: ${{ steps.bundle.outputs.arch }}
-
-    steps:
-    - name: Install dependencies
-      run: brew install tcl-tk@8 cairo jpeg-turbo bison
-    - name: Checkout source
-      uses: actions/checkout@v4
-    - name: configure
-      run: ./configure --aqua
-    - name: make
-      run: make
-    - name: Headless netlist
-      run: |
-        mkdir -p "$RUNNER_TEMP/netlist"
-        src/xschem -x -q -r -s -n -o "$RUNNER_TEMP/netlist" xschem_library/examples/cmos_inv.sch
-        test -s "$RUNNER_TEMP/netlist/cmos_inv.spice"
-    - name: Build Xschem.app
-      run: sh XSchemMac/make_app.sh
-    - name: Verify the bundle
-      id: bundle
-      run: |
-        codesign --verify --deep --strict XSchemMac/build/Xschem.app
-        ! otool -L XSchemMac/build/Xschem.app/Contents/MacOS/xschem-bin | grep -E '/opt/homebrew|/usr/local|/opt/local'
-        XSchemMac/build/Xschem.app/Contents/MacOS/xschem -x -q -r -s -n -o "$RUNNER_TEMP/bundle" xschem_library/examples/cmos_inv.sch
-        cmp "$RUNNER_TEMP/netlist/cmos_inv.spice" "$RUNNER_TEMP/bundle/cmos_inv.spice"
-        echo "min_macos=$(plutil -extract LSMinimumSystemVersion raw XSchemMac/build/Xschem.app/Contents/Info.plist)" >> "$GITHUB_OUTPUT"
-        echo "arch=$(lipo -archs XSchemMac/build/Xschem.app/Contents/MacOS/xschem-bin)" >> "$GITHUB_OUTPUT"
-    # a disk image keeps the bundle's symlinks and permissions, which upload-artifact's own
-    # zip would drop, and opens with one click after GitHub's artifact zip is extracted
-    - name: Make a disk image
-      run: hdiutil create -volname Xschem -srcfolder XSchemMac/build/Xschem.app -format UDZO -ov Xschem.dmg
-    - name: Archive Xschem.dmg
-      uses: actions/upload-artifact@v4
-      with:
-        name: Xschem-macOS
-        path: Xschem.dmg
-
-  # a pushed v* tag publishes the disk image of the macos job as a GitHub Release
-  release:
-
-    needs: macos
-
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-
-    runs-on: ubuntu-latest
-
-    name: GitHub Release
-
-    permissions:
-      contents: write
-
-    steps:
-    - name: Download Xschem.dmg
-      uses: actions/download-artifact@v4
-      with:
-        name: Xschem-macOS
-    - name: Publish the release
-      env:
-        GH_TOKEN: ${{ github.token }}
-        TAG: ${{ github.ref_name }}
-        MIN_MACOS: ${{ needs.macos.outputs.min_macos }}
-        ARCH: ${{ needs.macos.outputs.arch }}
-      run: |
-        dmg="Xschem-${TAG#v}-$ARCH.dmg"
-        mv Xschem.dmg "$dmg"
-        cat > notes.md <<EOF
-        Native macOS (Aqua Tk) build of xschem from this experimental fork; not supported by upstream xschem.
-
-        **\`$dmg\`** holds a self-contained \`Xschem.app\` (Tcl/Tk, cairo and their libraries inside; no Homebrew or XQuartz needed). It needs macOS $MIN_MACOS or later on $ARCH.
-
-        - The app is signed ad hoc, not notarized: on first launch macOS refuses to open it until you click Open Anyway in System Settings > Privacy & Security, or run \`xattr -dr com.apple.quarantine /Applications/Xschem.app\`. Steps in [Download the app](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/README_MacOS.md#download-the-app).
-        - PDF export needs Ghostscript (\`brew install ghostscript\`).
-        - To build from source with Homebrew instead: \`brew install thomaslima/tap/xschem-mac\` ([README_MacOS.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/README_MacOS.md)).
-        EOF
-        gh release create "$TAG" "$dmg" --repo "$GITHUB_REPOSITORY" --verify-tag --title "xschem-mac ${TAG#v}" --notes-file notes.md
+    uses: ./.github/workflows/macos-app.yml

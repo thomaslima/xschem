@@ -93,6 +93,27 @@ Opening without these steps requires a Developer ID signature and notarization b
 Apple, which needs a paid Apple Developer Program membership. The script does not do
 this.
 
+## Releases
+
+Releases of this fork are tagged `v<xschem version>-mac.<n>`, for example `v3.4.8RC-mac.3`,
+where `<n>` counts the fork's releases of one xschem version. Two GitHub Actions workflows
+make a release, each started by hand with the same tag:
+
+1. **Release** (`.github/workflows/release.yml` in this repository) builds `Xschem.app` with
+   the checks of CI and publishes `Xschem-<version>-<arch>.dmg` on a new GitHub Release. Run
+   it from Actions > Release > Run workflow: choose the branch and enter the tag. A tag that
+   does not exist yet is created at the head of that branch; an existing tag is built as it
+   is. Pushing a `v*` tag starts the same workflow. It stops if the release already exists.
+2. **Update formula** (`.github/workflows/update-formula.yml` in
+   [thomaslima/homebrew-tap](https://github.com/thomaslima/homebrew-tap)) points the
+   `xschem-mac` formula at the tag: it sets `url`, `version` and `sha256`, builds and tests the
+   formula on macOS, and commits the change to the tap. `brew update` and
+   `brew upgrade xschem-mac` then install it.
+
+The formula builds from the tag's source archive, not from the release's disk image, so the
+two workflows do not depend on each other beyond the tag; run Release first when it creates
+the tag.
+
 ## Licences
 
 xschem is GPL-2.0-or-later. Tcl/Tk, pixman, libpng, freetype, libjpeg-turbo, the X11
