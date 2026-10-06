@@ -43,6 +43,11 @@
 #define __unix__
 #endif
 
+/* XSCHEM_AQUA: build for native macOS Tk (Aqua), no X server.
+ * Xlib calls are served by the Xlib emulation built in Tk, as in the Windows build.
+ * __unix__ stays defined (POSIX code is shared), XSCHEM_AQUA disables only
+ * what needs a real X server. */
+
 /* stringification: STRINGIFY(xxxx) --> "xxxx" */
 #define STRINGIFY2(x) #x
 #define STRINGIFY(x) STRINGIFY2(x)
@@ -90,7 +95,9 @@
 #include <X11/keysymdef.h>
 #include <X11/keysym.h>
 #include <X11/Xatom.h>
+#ifndef XSCHEM_AQUA
 #include <X11/xpm.h>
+#endif
 
 #define xunlink unlink
 #define xfseek fseek
@@ -129,7 +136,9 @@ extern char win_temp_dir[PATH_MAX];
 #if defined(HAS_LIBJPEG)
 #include "cairo_jpg.h"
 #endif
-#ifdef __unix__
+#if defined(XSCHEM_AQUA)
+/* cairo draws straight into the memory of Tk pixmaps, see aqua_pixmap_surface() */
+#elif defined(__unix__)
 #include <cairo-xlib.h>
 #include "cairo-xlib-xrender.h"
 #else
@@ -139,6 +148,9 @@ extern char win_temp_dir[PATH_MAX];
 
 #include <tcl.h>
 #include <tk.h>
+#ifdef XSCHEM_AQUA
+#include "aqua.h" /* display layer of the Aqua build, in aqua.m */
+#endif
 
 #define _ALLOC_ID_ 0 /* to be replaced with unique IDs in my_*() allocations for memory tracking
                       * see create_alloc_ids.awk */

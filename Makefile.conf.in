@@ -41,7 +41,14 @@ PREFIX=@/local/xschem/prefix@
 CC=@cc/cc@
 CFLAGS=@/local/xschem/cflags@
 LDFLAGS=@/local/xschem/ldflags@
+@]
 
+if /local/xschem/aqua then
+print [@OBJCFLAGS=@/local/xschem/objcflags@
+@]
+end
+
+print [@
 BINDIR=$(DESTDIR)$(install_root)$(PREFIX)/bin
 SHAREDIR=$(DESTDIR)$(install_root)$(PREFIX)/share
 DOCDIR=$(DESTDIR)$(install_root)$(PREFIX)/share/doc

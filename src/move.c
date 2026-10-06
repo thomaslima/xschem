@@ -503,7 +503,7 @@ void draw_selection(GC g, int interruptable)
      }
      break;
    }
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
    if(interruptable && pending_events())
    {
     drawtemparc(g, END, 0.0, 0.0, 0.0, 0.0, 0.0);

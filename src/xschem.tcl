@@ -1079,6 +1079,7 @@ proc convert_to_pdf {filename dest} {
         puts stderr "problems converting postscript to pdf: $msg"
       }
     } else { ;# OS == unix
+      if {[is_aqua]} {return [aqua_convert_to_pdf $filename $pdffile $dest]}
       eval execute_wait 0 $to_pdf [list $filename $pdffile]
       if {$execute(status,last) == 0} {
         file rename -force $pdffile $dest
@@ -1120,6 +1121,7 @@ proc convert_to_png {filename dest} {
 #
 proc key_binding {  s  d { win_path {.drw} } } {
   regsub {.*-} $d {} key
+  if {[is_aqua]} {regsub -all {Alt-} $s {Option-} s} ;# Alt- never matches on Aqua
 
 
   switch $key {
@@ -1921,6 +1923,7 @@ To reset to default use the corresponding button or just delete the
   }
   bind .sim <ButtonPress-4> { sframeyview .sim.topf scroll -0.2}
   bind .sim <ButtonPress-5> { sframeyview .sim.topf scroll 0.2}
+  if {[is_aqua]} {bind .sim <MouseWheel> {sframeyview .sim.topf scroll [expr {-0.05 * %D}]}}
   sframeyview .sim.topf place
   set maxsize [expr {[winfo height ${scrollframe}] + [winfo height .sim.bottom]}]
   wm maxsize .sim 9999 $maxsize
@@ -2252,6 +2255,7 @@ proc cellview { {derived_symbols {}} {upd 0}} {
   bind .cv.center.f <Configure> {sframeyview .cv.center}
   bind .cv <ButtonPress-4> { sframeyview .cv.center scroll -0.1}
   bind .cv <ButtonPress-5> { sframeyview .cv.center scroll 0.1}
+  if {[is_aqua]} {bind .cv <MouseWheel> {sframeyview .cv.center scroll [expr {-0.025 * %D}]}}
   bind .cv <Escape> {destroy .cv}
 }
 ############ /cellview
@@ -2374,6 +2378,7 @@ proc traversal {{only_subckts 1} {all_hierarchy 1}} {
   bind .trav.center.f <Configure> {sframeyview .trav.center}
   bind .trav <ButtonPress-4> { sframeyview .trav.center scroll -0.1}
   bind .trav <ButtonPress-5> { sframeyview .trav.center scroll 0.1}
+  if {[is_aqua]} {bind .trav <MouseWheel> {sframeyview .trav.center scroll [expr {-0.025 * %D}]}}
   bind .trav <Escape> "
     set traversal(geom) \[winfo geometry .trav\]
     destroy .trav
@@ -4197,6 +4202,7 @@ proc edit_netlist {netlist } {
 # ext:  .sch or .sym or .sch.sym or .sym.sch
 #
 proc save_file_dialog { msg ext global_initdir {initialf {}} {overwrt 1} } {
+  if {[is_aqua]} {return [aqua_save_file_dialog $msg $ext $global_initdir $initialf $overwrt]}
   upvar #0 $global_initdir initdir
   set temp $initdir
   if { $initialf ne {}} {
@@ -9161,6 +9167,7 @@ proc context_menu { } {
   if {!$selection} {
     pack .ctxmenu.b8 -fill x -expand true
   }
+  if {[is_aqua]} {return [aqua_popup_menu .ctxmenu]}
   wm geometry .ctxmenu "+$x+$y"
   update
   # if window has been destroyed (by mouse pointer exiting) do nothing
@@ -9213,6 +9220,8 @@ proc tab_ctx_cmd {tab_but what} {
         set dir [file dirname $filename]
         set command [list {*}[auto_execok start] {}]
         exec {*}$command $dir &
+      } elseif {[is_aqua]} {
+        execute 0 open [file dirname $filename]
       } else {
         execute 0 xdg-open [file dirname $filename]
       }
@@ -9230,7 +9239,7 @@ proc tab_ctx_cmd {tab_but what} {
       } else {
         set save [pwd]
         cd [file dirname $filename]
-        execute 0 $terminal
+        eval execute 0 $terminal
         cd $save
       }
     } elseif {$what eq {simterm}} {
@@ -9243,7 +9252,7 @@ proc tab_ctx_cmd {tab_but what} {
       } else {
         set save [pwd]
         cd $netlist_dir
-        execute 0 $terminal
+        eval execute 0 $terminal
         cd $save
       }
     } elseif {$what eq {edit}} {
@@ -9395,6 +9404,7 @@ proc tab_context_menu {tab_but} {
   }
   pack .ctxmenu.b7 -fill x -expand true
   pack .ctxmenu.b8 -fill x -expand true
+  if {[is_aqua]} {return [aqua_popup_menu .ctxmenu]}
   wm geometry .ctxmenu "+$x+$y"
   update
   # if window has been destroyed (by mouse pointer exiting) do nothing
@@ -9800,6 +9810,7 @@ proc set_tab_names {{mod {}}} {
          .tabs.x$i configure -background $tctx::tab_bg
       }
     }
+    if {[is_aqua]} {aqua_tabs $tabname}
   }
 }
 
@@ -10291,6 +10302,258 @@ proc getmousey {win} {
   return $rely
 }
 
+###
+### macOS native Tk (Aqua). Used only when is_aqua returns 1.
+###
+
+# 1 on native macOS Tk. 'tk' does not exist in runs without a GUI (-x)
+proc is_aqua {} {
+  return [expr {[info commands tk] ne {} && [tk windowingsystem] eq {aqua}}]
+}
+
+# Aqua Tk numbers the right button 2 and the middle button 3. Side buttons (4, 5) become
+# 8, 9 as on X11, otherwise they would zoom like wheel steps.
+proc aqua_button {b} {
+  switch -- $b { 2 {return 3} 3 {return 2} 4 {return 8} 5 {return 9} default {return $b} }
+}
+
+# Aqua reports Command as Mod1 (xschem's Alt), Option as Mod2, and sets Mod3 (keypad) and
+# Mod4 (Fn) on arrow and function keys. Option becomes Alt, the others are dropped; held
+# right and middle buttons are swapped as in aqua_button.
+proc aqua_state {s} {
+  set r [expr {$s & 0x107}] ;# Shift, Lock, Control, Button1
+  if {$s & 0x10} {set r [expr {$r | 0x8}]}
+  if {$s & 0x200} {set r [expr {$r | 0x400}]}
+  if {$s & 0x400} {set r [expr {$r | 0x200}]}
+  return $r
+}
+
+# Aqua sends <MouseWheel> instead of buttons 4/5. A trackpad sends a stream of +-1 events:
+# make one zoom/pan step per $aqua_wheel_units of delta, at most every $aqua_wheel_interval ms.
+proc aqua_wheel {w x y d state} {
+  global aqua_wheel_units aqua_wheel_interval aqua_wheel
+  if {![info exists aqua_wheel(acc)] || $aqua_wheel(acc) * $d < 0} {set aqua_wheel(acc) 0}
+  set aqua_wheel(acc) [expr {$aqua_wheel(acc) + $d}]
+  if {abs($aqua_wheel(acc)) < $aqua_wheel_units} return
+  set now [clock milliseconds]
+  if {[info exists aqua_wheel(last)] && $now - $aqua_wheel(last) < $aqua_wheel_interval} return
+  set aqua_wheel(last) $now
+  set b [expr {$aqua_wheel(acc) > 0 ? 4 : 5}]
+  set aqua_wheel(acc) 0
+  xschem callback $w 4 $x $y 0 $b 0 $state
+}
+
+# called at the end of set_bindings: same events, with buttons and modifiers translated.
+# Key events pass %k so callback() can undo the character that Option composes.
+proc aqua_bindings {topwin zoom_state horiz_pan_state vert_pan_state} {
+  global aqua_command_keys autofocus_mainwindow
+  bind $topwin <ButtonPress> {focus %W; xschem callback %W %T %x %y 0 [aqua_button %b] 0 [aqua_state %s]}
+  bind $topwin <ButtonRelease> {xschem callback %W %T %x %y 0 [aqua_button %b] 0 [aqua_state %s]}
+  foreach b {1 2 3} {
+    bind $topwin <Double-Button-$b> {xschem callback %W -3 %x %y 0 [aqua_button %b] 0 [aqua_state %s]}
+  }
+  if {$autofocus_mainwindow} {
+    bind $topwin <Motion> {focus %W; xschem callback %W %T %x %y 0 0 0 [aqua_state %s]}
+  } else {
+    bind $topwin <Motion> {xschem callback %W %T %x %y 0 0 0 [aqua_state %s]}
+  }
+  bind $topwin <KeyPress> {
+    if {{%K} eq {Escape}} { destroy .ctxmenu }
+    xschem callback %W %T %x %y %N 0 [expr {%k & 0x7fffffff}] [aqua_state %s]
+  }
+  bind $topwin <KeyRelease> {xschem callback %W %T %x %y %N 0 0 [aqua_state %s]}
+  bind $topwin <Leave> [string map {%s {[aqua_state %s]}} [bind $topwin <Leave>]]
+  bind $topwin <MouseWheel> "aqua_wheel %W %x %y %D $zoom_state"
+  bind $topwin <Shift-MouseWheel> "aqua_wheel %W %x %y %D $horiz_pan_state"
+  bind $topwin <Control-MouseWheel> "aqua_wheel %W %x %y %D $vert_pan_state"
+  # Command keys not in aqua_command_keys do nothing, instead of acting as Alt keys
+  bind $topwin <Command-KeyPress> {;}
+  foreach row $aqua_command_keys {
+    lassign $row event key
+    set k [lindex [split $key -] end]
+    if {[dict exists {Delete 65535 Left 65361 Right 65363} $k]} {
+      set keysym [dict get {Delete 65535 Left 65361 Right 65363} $k]
+    } else {
+      set keysym [scan $k %c]
+    }
+    set state [expr {4 * [regexp Control- $key] + [regexp Shift- $key]}]
+    bind $topwin $event "xschem callback %W %T %x %y $keysym 0 0 $state"
+  }
+}
+
+# called at the end of build_widgets
+proc aqua_menus {topwin} {
+  global aqua_command_keys
+  set m $topwin.menubar
+  # the macOS menu bar shows only cascades: the Netlist and Simulate entries would vanish
+  $m.simulation insert 0 command -label Netlist -command {xschem netlist -erc}
+  $m.simulation insert 1 command -label Simulate -command {simulate_from_button}
+  $m.simulation insert 2 separator
+  # Tk fills a menu named 'window' with Minimize (Cmd-M), Zoom and the window list
+  $m insert Help cascade -label Window -menu $m.window
+  menu $m.window -tearoff 0 -takefocus 0
+  # Aqua Tk has no tiled fills: xschem always erases with the alternative method there
+  $m.option entryconfigure {Fix for GPUs with broken tiled fill} -state disabled
+  # an Aqua menu accelerator does not run the command (the bindings do): only the label changes
+  foreach row $aqua_command_keys {
+    lassign $row event key menu entry
+    if {$menu ne {}} {
+      set acc [string map {<Command- Cmd+ Shift- Shift+ Key- {} > {} equal = minus - BackSpace Backspace} $event]
+      catch {$m.$menu entryconfigure $entry -accelerator $acc}
+    }
+  }
+  $m.file entryconfigure {Quit Xschem} -accelerator Cmd+Q
+}
+
+# called at the end of set_tab_names. Aqua buttons ignore -background, so the current tab
+# is shown as the default button. The tab menu is bound to the right button (2 on Aqua).
+proc aqua_tabs {tabname} {
+  for { set i 0} { $i < $tctx::max_new_windows} { incr i} {
+    if {[winfo exists .tabs.x$i]} {
+      .tabs.x$i configure -default [expr {$tabname eq ".x$i" ? {active} : {normal}}]
+      bind .tabs.x$i <ButtonPress-2> {tab_context_menu %W}
+    }
+  }
+}
+
+# Aqua never makes an override-redirect toplevel the key window, so the button menus built
+# by context_menu and tab_context_menu get no Enter, Leave or Motion events.
+# Show the buttons of toplevel $w as a native popup menu instead. $w is destroyed before
+# the menu is posted, so it never gets an NSWindow: destroying a toplevel with an NSWindow
+# makes Aqua Tk reset the key window and its mouse event target, which must not happen
+# while the menu is tracking. No 'update': context_menu is called from C with the
+# semaphore raised, so no nested event loop may run here.
+proc aqua_popup_menu {w} {
+  menu .aquapopup -tearoff 0
+  foreach b [pack slaves $w] {
+    .aquapopup add command -label [$b cget -text] -command [$b cget -command] \
+      -state [$b cget -state] -image [$b cget -image] -compound left
+  }
+  destroy $w
+  tk_popup .aquapopup [winfo pointerx .] [winfo pointery .]
+  destroy .aquapopup
+  return $tctx::retval
+}
+
+# save_file_dialog on macOS: the native save panel, as a sheet on the xschem window.
+# xschem's own dialog is a separate, non-transient window that lists library paths: a Mac
+# user cannot easily reach an arbitrary folder with it, and if it ends up behind the main
+# window it still waits while the drawing ignores input. A sheet cannot be hidden.
+# ext is a glob such as * or *.svg or *.{ps,pdf}. The panel only accepts those extensions,
+# so .eps is added to the list when the proposed name has it. Returns the chosen path or {}.
+proc aqua_save_file_dialog {msg ext global_initdir initialf overwrt} {
+  upvar #0 $global_initdir initdir
+  set dir $initdir
+  set name {}
+  if {$initialf ne {}} {
+    set dir [file dirname $initialf]
+    set name [file tail $initialf]
+  }
+  set opts [list -parent [xschem get topwindow] -title $msg -initialdir $dir \
+    -initialfile $name -confirmoverwrite $overwrt]
+  if {[regexp {^\*\.\{?([^\}]*)\}?$} $ext -> list]} {
+    set exts [lmap e [split $list ,] {string cat . $e}]
+    if {[file extension $name] eq {.eps}} {lappend exts .eps}
+    lappend opts -filetypes [list [list [join $exts {, }] $exts]]
+  }
+  xschem set semaphore [expr {[xschem get semaphore] +1}]
+  set f [tk_getSaveFile {*}$opts]
+  xschem set semaphore [expr {[xschem get semaphore] -1}]
+  return $f
+}
+
+# PDF export, unix branch of convert_to_pdf. That branch reports nothing when the converter
+# runs and fails, and a missing converter only gets a generic "Can not execute" message.
+# On a Mac both are common: macOS has no PostScript to PDF converter.
+proc aqua_convert_to_pdf {psfile pdffile dest} {
+  global to_pdf execute
+  set tool [lindex $to_pdf 0]
+  if {[auto_execok $tool] eq {}} {
+    set msg "'$tool' was not found."
+  } elseif {[eval execute_wait 0 $to_pdf [list $psfile $pdffile]] == -1} {
+    return ;# execute has shown why the converter could not be started
+  } elseif {$execute(exitcode,last) != 0 || ![file exists $pdffile]} {
+    set msg "'$to_pdf' failed. $execute(error,last)"
+  } else {
+    file rename -force $pdffile $dest
+    if {![xschem get debug_var]} {file delete $psfile}
+    return
+  }
+  set ps [file rootname $dest].ps
+  if {[catch {file rename -force $psfile $ps}]} {set ps $psfile}
+  tk_messageBox -icon error -parent [xschem get topwindow] -message "PDF export failed: $msg" \
+    -detail "Xschem converts PostScript to PDF with Ghostscript (ps2pdf). To install it:\n\
+      brew install ghostscript\nThe PostScript output was saved as:\n$ps"
+}
+
+if {[info exists has_x] && [is_aqua]} {
+  # Quit from the application menu, Cmd-Q or logout: ask to save as File > Quit does.
+  # If the user cancels this returns and Tk keeps running.
+  proc ::tk::mac::Quit {} {
+    if {[xschem get semaphore] >= 2} return
+    quit_xschem
+  }
+  proc tkAboutDialog {} { about }
+  proc ::tk::mac::ReopenApplication {} {
+    if {[wm state .] ne {normal}} { wm deiconify . }
+    raise .
+  }
+  # Finder Open and drops on the Dock icon. Files that arrive during startup wait until
+  # Tcl_AppInit() calls aqua_open_pending.
+  set aqua_open_queue {}
+  proc ::tk::mac::OpenDocument {args} {
+    global aqua_open_queue aqua_started
+    lappend aqua_open_queue {*}$args
+    if {[info exists aqua_started]} { aqua_open_pending }
+  }
+  proc aqua_open_pending {} {
+    global aqua_open_queue aqua_started
+    set aqua_started 1
+    foreach f $aqua_open_queue {
+      if {![xschem get modified] && [regexp {^untitled} [file tail [xschem get schname]]]} {
+        xschem load -gui $f
+      } else {
+        xschem load_new_window $f
+      }
+    }
+    set aqua_open_queue {}
+  }
+
+  set_ne launcher_default_program open
+  set_ne editor {open -W -n -e} ;# TextEdit, returns when it quits (as gvim -f)
+  set_ne terminal [list /bin/sh $XSCHEM_SHAREDIR/xschem_terminal.sh] ;# xterm -e replacement
+  set_ne aqua_wheel_units 1
+  set_ne aqua_wheel_interval 50
+  set fix_broken_tiled_fill 1 ;# as forced in C: Aqua Tk has no tiled fills
+
+  # Command-key shortcuts: Tk event, xschem key it performs, menu and entry that show it.
+  # Control keys keep working. Do not use Command-h, -m, -q, -comma, -question, -Tab,
+  # -space or -grave: macOS owns them.
+  set_ne aqua_command_keys {
+    {<Command-Key-s>                Control-s        file  {Save}}
+    {<Command-Shift-Key-S>          Control-Shift-S  file  {Save as}}
+    {<Command-Key-o>                Control-o        file  {Open}}
+    {<Command-Key-w>                Control-w        file  {Close schematic}}
+    {<Command-Key-n>                Control-t        {}    {}}
+    {<Command-Key-t>                Control-t        file  {Create new window/tab}}
+    {<Command-Key-z>                u                edit  {Undo}}
+    {<Command-Shift-Key-Z>          Shift-U          edit  {Redo}}
+    {<Command-Key-x>                Control-x        edit  {Cut}}
+    {<Command-Key-c>                Control-c        edit  {Copy}}
+    {<Command-Key-v>                Control-v        edit  {Paste}}
+    {<Command-Key-a>                Control-a        edit  {Select all}}
+    {<Command-Key-f>                Control-f        tools {Search}}
+    {<Command-Key-BackSpace>        Delete           edit  {Delete}}
+    {<Command-Key-equal>            Shift-Z          view  {Zoom In}}
+    {<Command-Key-plus>             Shift-Z          {}    {}}
+    {<Command-Key-minus>            Control-z        view  {Zoom Out}}
+    {<Command-Key-0>                f                view  {Zoom Full}}
+    {<Command-Shift-Key-braceright> Control-Right    {}    {}}
+    {<Command-Shift-Key-braceleft>  Control-Left     {}    {}}
+  }
+}
+### end of macOS native Tk
+
 proc switch_window {parent topwin event window} {
   # puts "$parent $topwin $event $window"
   raise_dialog $parent $topwin
@@ -10337,7 +10600,7 @@ global env has_x OS autofocus_mainwindow replace_key
   ### Tk event handling
   ###
 
-  if {($OS== "Windows" || [string length [lindex [array get env DISPLAY] 1] ] > 0 ) && [info exists has_x]} {
+  if {($OS== "Windows" || [string length [lindex [array get env DISPLAY] 1] ] > 0 || [is_aqua]) && [info exists has_x]} {
     set parent [winfo toplevel $topwin]
     # puts "set_binding: topwin=$topwin, parent=$parent"
 
@@ -10360,7 +10623,7 @@ global env has_x OS autofocus_mainwindow replace_key
     bind $topwin <Expose> "if {{%W} eq {$topwin}} {xschem callback %W %T %x %y 0 %w %h %s}"
 
     # transform mousewheel events into button4/5 events
-    if {[info tclversion] >= 8.7} {
+    if {[info tclversion] >= 8.7 || [is_aqua]} {
       set zoom_state 0
       set vert_pan_state 4
       set horiz_pan_state 1
@@ -10486,6 +10749,7 @@ global env has_x OS autofocus_mainwindow replace_key
         }
       }
     }
+    if {[is_aqua]} {aqua_bindings $topwin $zoom_state $horiz_pan_state $vert_pan_state}
 
     if {$parent eq {.}} { set parent {}}
     bind ${parent}.statusbar.5 <Leave> \
@@ -10506,7 +10770,7 @@ global env has_x OS autofocus_mainwindow replace_key
 proc pack_widgets { { topwin {} } } {
   global env has_x OS tabbed_interface toolbar_visible toolbar_horiz
   # puts "pack_widgets: $topwin"
-  if {($OS== "Windows" || [string length [lindex [array get env DISPLAY] 1] ] > 0 ) && [info exists has_x]} {
+  if {($OS== "Windows" || [string length [lindex [array get env DISPLAY] 1] ] > 0 || [is_aqua]) && [info exists has_x]} {
     pack $topwin.statusbar.2 -side left
     pack $topwin.statusbar.3 -side left
     pack $topwin.statusbar.4 -side left
@@ -11308,6 +11572,7 @@ tclcommand=\"xschem raw_read \$netlist_dir/@schname\\\\.raw tran\"
   label $topwin.statusbar.9 -textvariable enable_stretch
   label $topwin.statusbar.8 -activebackground red -text {} ;# Caps lock, Num lock status
   add_toolbuttons $topwin
+  if {[is_aqua]} {aqua_menus $topwin}
 }
 
 proc set_initial_dirs {} {
@@ -12257,7 +12522,7 @@ set custom_label_prefix {}
 ###
 ### build Tk widgets
 ###
-if { ( $OS== "Windows" || [string length [lindex [array get env DISPLAY] 1] ] > 0 ) && [info exists has_x]} {
+if { ( $OS== "Windows" || [string length [lindex [array get env DISPLAY] 1] ] > 0 || [is_aqua]) && [info exists has_x]} {
   setup_toolbar
   # for hyperlink in about dialog
   eval  font create Underline-Font [ font actual TkDefaultFont ]

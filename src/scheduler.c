@@ -2362,7 +2362,7 @@ int xschem(ClientData clientdata, Tcl_Interp *interp, int argc, const char * arg
       my_snprintf(res, S(res), "XSCHEM_LIBRARY_PATH=%s\n",
         tclgetvar("XSCHEM_LIBRARY_PATH")); Tcl_AppendResult(interp, res, NULL);
 
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
       my_snprintf(res, S(res), "******* Xserver options: *******\n"); Tcl_AppendResult(interp, res, NULL);
       my_snprintf(res, S(res), "XMaxRequestSize=%ld\n", XMaxRequestSize(display));
       Tcl_AppendResult(interp, res, NULL);
@@ -2418,7 +2418,7 @@ int xschem(ClientData clientdata, Tcl_Interp *interp, int argc, const char * arg
     else if(!strcmp(argv[1], "grabscreen"))
     {
       if(!xctx) {Tcl_SetResult(interp, not_avail, TCL_STATIC); return TCL_ERROR;}
-      #if defined(__unix__) && HAS_CAIRO==1
+      #if defined(__unix__) && !defined(XSCHEM_AQUA) && HAS_CAIRO==1
       xctx->ui_state |= GRABSCREEN;
       tclvareval("grab set -global ", xctx->top_path, ".drw", NULL);
       #endif
@@ -5659,7 +5659,9 @@ int xschem(ClientData clientdata, Tcl_Interp *interp, int argc, const char * arg
             xctx->draw_window=atoi(argv[3]);
           }
           else if(!strcmp(argv[2], "fix_broken_tiled_fill")) { /* alternate drawing method for broken GPUs */
+            #ifndef XSCHEM_AQUA /* Aqua Tk has no tiled fills: the setting stays at 1 */
             fix_broken_tiled_fill = atoi(argv[3]);
+            #endif
           }
           else if(!strcmp(argv[2], "fix_mouse_coord")) { /* fix for wrong mouse coords in RDP software */
             fix_mouse_coord = atoi(argv[3]);

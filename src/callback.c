@@ -4009,7 +4009,7 @@ static void handle_key_press(int event, KeySym key, int state, int rstate, int m
       if(state == 0) go_back(1); /* go up in hierarchy */
       break;
 
-#if defined(__unix__) && HAS_CAIRO==1
+#if defined(__unix__) && !defined(XSCHEM_AQUA) && HAS_CAIRO==1
     case XK_Print:
       xctx->ui_state |= GRABSCREEN;
       tclvareval(xctx->top_path, ".drw configure -cursor {}" , NULL);
@@ -4581,7 +4581,7 @@ static void update_statusbar(int persistent_command, int wire_draw_active)
   #ifndef __unix__
   short cstate = GetKeyState(VK_CAPITAL);
   short nstate = GetKeyState(VK_NUMLOCK);
-  #else
+  #elif !defined(XSCHEM_AQUA)
   XKeyboardState kbdstate;
   #endif
 
@@ -4606,6 +4606,9 @@ static void update_statusbar(int persistent_command, int wire_draw_active)
   } else { /* normal state */
     tclvareval(xctx->top_path, ".statusbar.8 configure -state  normal -text {}", NULL);
   }
+  #elif defined(XSCHEM_AQUA)
+  /* no lock keys state from the Aqua Tk Xlib emulation */
+  tclvareval(xctx->top_path, ".statusbar.8 configure -state  normal -text {}", NULL);
   #else
   XGetKeyboardControl(display, &kbdstate);
   if(kbdstate.led_mask & 1) { /* caps lock */
@@ -4733,6 +4736,18 @@ int callback(const char *win_path, int event, int mx, int my, KeySym key, int bu
     dbg(1, ("reentrant callback() call disabled, semaphore = %d\n", xctx->semaphore));
     return 0;
   }
+  #ifdef XSCHEM_AQUA
+  /* key events carry Tk's %k in aux. Option (already turned into Mod1Mask by the Tcl
+   * bindings) composes characters on a Mac keyboard: Option-x would be approxequal.
+   * Take the key's symbol without Option, so Option-x arrives as Alt-x */
+  if(event == KeyPress || event == KeyRelease) {
+    if(aux && (state & Mod1Mask)) {
+      KeySym k = XkbKeycodeToKeysym(display, (unsigned int)aux, 0, (state & ShiftMask) ? 1 : 0);
+      if(k != NoSymbol) key = k;
+    }
+    aux = 0;
+  }
+  #endif
   /* this fix uses an alternative method for getting mouse coordinates on KeyPress/KeyRelease
    * events. Some remote connection softwares do not generate the correct coordinates
    * on such events */
@@ -4805,7 +4820,7 @@ int callback(const char *win_path, int event, int mx, int my, KeySym key, int bu
 
   dbg(2, ("key=%d EQUAL_MODMASK=%d, SET_MODMASK=%d\n", key, SET_MODMASK, EQUAL_MODMASK));
 
-  #if defined(__unix__) && HAS_CAIRO==1
+  #if defined(__unix__) && !defined(XSCHEM_AQUA) && HAS_CAIRO==1
   if(xctx->ui_state & GRABSCREEN) {
     grabscreen(win_path, event, mx, my, key, button, aux, state);
   } else
@@ -4825,7 +4840,36 @@ int callback(const char *win_path, int event, int mx, int my, KeySym key, int bu
      break;
 
    case Expose:
+     #ifdef XSCHEM_AQUA
+     /* The front buffer of a window is never damaged (aqua.m), so an Expose only presents
+      * it again; handle_expose() is not used. The exposed window is not always the window
+      * of the current context: a new window is exposed while it is being opened.
+      * save_pixmap is remade first if it does not match the window:
+      * - size: the first ConfigureNotify of a new window can come before xschem binds to it;
+      * - backing scale: the window moved to a display with another scale. The same check
+      *   runs at the end of every xschem command (xschem_and_present() in xinit.c), for
+      *   the current context only; here it also covers the other windows, whose context
+      *   is current while their Expose is handled (handle_window_switching()).
+      * Neither is done when this callback runs inside another xschem command
+      * (aqua_nesting() > 1), which may be printing at a set size. */
+     (void)handle_expose;
+     {
+       Tk_Window tkwin = Tk_NameToWindow(NULL, win_path, Tk_MainWindow(interp));
+       Window win = tkwin ? Tk_WindowId(tkwin) : 0;
+       if(win && win == xctx->window && aqua_nesting(0) == 1) {
+         if(Tk_Width(tkwin) != xctx->xrect[0].width || Tk_Height(tkwin) != xctx->xrect[0].height) {
+           resetwin(1, 1, 0, 0, 0);
+           draw();
+         } else if(aqua_scale_mismatch(win, xctx->save_pixmap)) {
+           resetwin(1, 1, 1, 0, 0);
+           draw();
+         }
+       }
+       if(win) aqua_present(win);
+     }
+     #else
      handle_expose(mx,my,button,aux);
+     #endif
      break;
 
    case ConfigureNotify:

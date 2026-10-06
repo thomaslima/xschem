@@ -1,3 +1,73 @@
+# Build instructions for macOS (native Aqua build)
+The native build draws through Tk's macOS (Aqua) backend. It needs neither XQuartz nor an
+X11 library, and all libraries come from Homebrew.
+
+## Prerequisites
+Install the Xcode command line tools (`xcode-select --install`) and Homebrew (https://brew.sh),
+then the required packages:
+
+```
+brew install tcl-tk@8 cairo jpeg-turbo bison
+```
+
+Tcl/Tk 8.6 (`tcl-tk@8`) is required. Homebrew's `bison` is needed because the bison shipped
+with macOS (2.3) is too old; it does not have to be on `PATH`.
+
+## xschem compilation
+
+```
+git clone https://github.com/StefanSchippers/xschem.git
+cd xschem
+./configure --aqua
+make
+```
+
+`--aqua` locates the Homebrew packages with `brew --prefix` (or under `/opt/homebrew/opt` when
+`brew` is not on `PATH`) and skips the X11, Xpm and xcb detection, so libraries from MacPorts or
+XQuartz are not used even when they are installed. If a package is missing, configure stops and
+prints the `brew install` command for it. It can be combined with the other configure options,
+for example `--debug` or `--prefix`. To build against a different Tcl/Tk installation, give its
+prefix (the directory that holds `lib/tclConfig.sh` and `lib/tkConfig.sh`):
+
+```
+./configure --aqua-tk=/path/to/tcl-tk
+```
+
+xschem can be run from the source tree without installing it:
+
+```
+cd src
+./xschem
+```
+
+To install it, set the prefix at configure time (default `/usr/local`):
+
+```
+./configure --aqua --prefix=/Users/$(whoami)/xschem-macos
+make
+make install
+```
+
+## Application bundle
+`XSchemMac/make_app.sh` packages the built `src/xschem` into a self-contained `Xschem.app`
+intended to run on other Macs without Homebrew (verified so far only on the build machine, with
+a scrubbed environment):
+
+```
+XSchemMac/make_app.sh            # -> XSchemMac/build/Xschem.app
+```
+
+See [XSchemMac/README.md](XSchemMac/README.md) for the bundle layout, signing and how to
+give the app to someone else.
+
+---
+
+# X11 build with XQuartz
+The instructions below build xschem as an X11 application that runs under XQuartz. Run
+`./configure` without `--aqua` for this build.
+
+---
+
 # Build instructions for MacOS 'Catalina'
 Install the latest XQuartz from XQuartz.org.
 Install the latest tcl, tk and cairo from MacPorts. 

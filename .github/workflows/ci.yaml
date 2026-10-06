@@ -10,10 +10,22 @@ jobs:
     name: Compilation
 
     steps:
-    - name: Install dependencies
-      run: sudo apt-get install -y flex bison gawk tcl tcl-dev tk tk-dev libcairo2 libcairo2-dev xcb libxcb1 libxcb1-dev libxrender-dev libxpm-dev libxcb-render0-dev libx11-xcb1 libx11-xcb-dev
     - name: Checkout source
       uses: actions/checkout@v4
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.apt-cache
+        key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yaml') }}
+        restore-keys: apt-${{ runner.os }}-
+    - name: Install dependencies
+      # the .deb files go to a cached directory, so only the package index and new
+      # versions are downloaded on later runs
+      run: |
+        mkdir -p ~/.apt-cache
+        sudo apt-get update
+        sudo apt-get -o Dir::Cache::archives=$HOME/.apt-cache install -y flex bison gawk tcl tcl-dev tk tk-dev libcairo2 libcairo2-dev xcb libxcb1 libxcb1-dev libxrender-dev libxpm-dev libxcb-render0-dev libx11-xcb1 libx11-xcb-dev
+        sudo rm -rf ~/.apt-cache/lock ~/.apt-cache/partial
     - name: configure
       run: ./configure
     - name: make
@@ -23,3 +35,41 @@ jobs:
       with:
         name: xschem
         path: src/xschem
+
+  macos:
+
+    runs-on: macos-latest
+
+    name: macOS app bundle (Aqua Tk)
+
+    steps:
+    - name: Install dependencies
+      run: brew install tcl-tk@8 cairo jpeg-turbo bison
+    - name: Checkout source
+      uses: actions/checkout@v4
+    - name: configure
+      run: ./configure --aqua
+    - name: make
+      run: make
+    - name: Headless netlist
+      run: |
+        mkdir -p "$RUNNER_TEMP/netlist"
+        src/xschem -x -q -r -s -n -o "$RUNNER_TEMP/netlist" xschem_library/examples/cmos_inv.sch
+        test -s "$RUNNER_TEMP/netlist/cmos_inv.spice"
+    - name: Build Xschem.app
+      run: sh XSchemMac/make_app.sh
+    - name: Verify the bundle
+      run: |
+        codesign --verify --deep --strict XSchemMac/build/Xschem.app
+        ! otool -L XSchemMac/build/Xschem.app/Contents/MacOS/xschem-bin | grep -E '/opt/homebrew|/usr/local|/opt/local'
+        XSchemMac/build/Xschem.app/Contents/MacOS/xschem -x -q -r -s -n -o "$RUNNER_TEMP/bundle" xschem_library/examples/cmos_inv.sch
+        cmp "$RUNNER_TEMP/netlist/cmos_inv.spice" "$RUNNER_TEMP/bundle/cmos_inv.spice"
+    # a disk image keeps the bundle's symlinks and permissions, which upload-artifact's own
+    # zip would drop, and opens with one click after GitHub's artifact zip is extracted
+    - name: Make a disk image
+      run: hdiutil create -volname Xschem -srcfolder XSchemMac/build/Xschem.app -format UDZO -ov Xschem.dmg
+    - name: Archive Xschem.dmg
+      uses: actions/upload-artifact@v4
+      with:
+        name: Xschem-macOS
+        path: Xschem.dmg

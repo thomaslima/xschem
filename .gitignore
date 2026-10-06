@@ -41,3 +41,9 @@ doc/manpages/xschem.1
 Makefile.conf
 config.h
 *.Identifier
+
+# Xschem.app built by XSchemMac/make_app.sh
+XSchemMac/build/
+
+# Finder metadata
+.DS_Store

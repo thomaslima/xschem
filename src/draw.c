@@ -59,7 +59,7 @@ static void my_cairo_fill(cairo_surface_t *src_surface, int x, int y, unsigned i
   cairo_surface_destroy(dest_surface); dest_surface = NULL;
 }
 #endif
-#ifdef __unix__
+#if defined(__unix__) && !defined(XSCHEM_AQUA) /* Aqua: xserver_ok() in aqua.m */
 int xserver_ok(void)
 {
   int has_x = 1;
@@ -132,7 +132,9 @@ void print_image()
                       * XPM and handles Xrender extensions for transparent embedded images */
   {
     cairo_surface_t *png_sfc;
-    #ifdef __unix__
+    #if defined(XSCHEM_AQUA)
+    png_sfc = aqua_pixmap_surface(xctx->save_pixmap);
+    #elif defined(__unix__)
     png_sfc = cairo_xlib_surface_create(display, xctx->save_pixmap, visual,
                xctx->xrect[0].width, xctx->xrect[0].height);
     #else
@@ -173,7 +175,7 @@ void print_image()
   xctx->do_copy_area=save;
 }
 
-#if defined(__unix__) && HAS_CAIRO==1
+#if defined(__unix__) && !defined(XSCHEM_AQUA) && HAS_CAIRO==1
 int grabscreen(const char *win_path, int event, int mx, int my, KeySym key,
                  int button, int aux, int state)
 {
@@ -1889,23 +1891,23 @@ void filledrect(int c, int what, double rectx1,double recty1,double rectx2,doubl
    if(xctx->draw_window) {
      if(e_a != -1) {
        XFillArc(display, xctx->window, gc, (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
      } else {
        XFillRectangle(display, xctx->window, gc, (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
    if(xctx->draw_pixmap) {
      if(e_a != -1) {
        XFillArc(display, xctx->save_pixmap, gc, (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
      } else {
        XFillRectangle(display, xctx->save_pixmap, gc,  (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
   }
@@ -2268,25 +2270,25 @@ void drawrect(int c, int what, double rectx1,double recty1,double rectx2,double 
    if(xctx->draw_window) {
      if(e_a != -1) {
        XDrawArc(display, xctx->window, xctx->gc[c], (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
      } else {
        XDrawRectangle(display, xctx->window, xctx->gc[c], (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
    if(xctx->draw_pixmap)
    {
      if(e_a != -1) {
        XDrawArc(display, xctx->save_pixmap, xctx->gc[c], (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
 
      } else {
        XDrawRectangle(display, xctx->save_pixmap, xctx->gc[c], (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
    if(dash || bus > 0.0 || bus == -1.0) {
@@ -2350,8 +2352,8 @@ void drawtemprect(GC gc, int what, double rectx1,double recty1,double rectx2,dou
 
    } else {
      XDrawRectangle(display, xctx->window, gc, (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
    }
   }
  }
@@ -5293,7 +5295,9 @@ void svg_embedded_graph(FILE *fd, int i, double rx1, double ry1, double rx2, dou
   setup_graph_data(i, 0, &xctx->graph_struct);
   draw_graph(i, 8 + (xctx->graph_flags & (4 | 2 | 128 | 256)), &xctx->graph_struct, NULL);
 
-#ifdef __unix__
+#if defined(XSCHEM_AQUA)
+  png_sfc = aqua_pixmap_surface(xctx->save_pixmap);
+#elif defined(__unix__)
   png_sfc = cairo_xlib_surface_create(display, xctx->save_pixmap, visual,
                xctx->xrect[0].width, xctx->xrect[0].height);
 #else
@@ -5638,8 +5642,8 @@ void MyXCopyAreaDouble(Display* display, Drawable src, Drawable dest, GC gc,
   idx1=X_TO_SCREEN(dx1) - 2 * intlw;
   idy1=Y_TO_SCREEN(dy1) - 2 * intlw;
 
-  width = (unsigned int)isx2 - (unsigned int)isx1;
-  height = (unsigned int)isy2 - (unsigned int)isy1;
+  width = (unsigned int)(int)isx2 - (unsigned int)(int)isx1;
+  height = (unsigned int)(int)isy2 - (unsigned int)(int)isy1;
   #if !defined(__unix__)
   XCopyArea(display, src, dest, gc, (int)isx1, (int)isy1, width, height, (int)idx1, (int)idy1);
   #if HAS_CAIRO==1
