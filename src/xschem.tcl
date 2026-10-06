@@ -9230,7 +9230,7 @@ proc tab_ctx_cmd {tab_but what} {
       } else {
         set save [pwd]
         cd [file dirname $filename]
-        execute 0 $terminal
+        eval execute 0 $terminal
         cd $save
       }
     } elseif {$what eq {simterm}} {
@@ -9243,7 +9243,7 @@ proc tab_ctx_cmd {tab_but what} {
       } else {
         set save [pwd]
         cd $netlist_dir
-        execute 0 $terminal
+        eval execute 0 $terminal
         cd $save
       }
     } elseif {$what eq {edit}} {
