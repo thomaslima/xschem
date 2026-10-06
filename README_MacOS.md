@@ -100,6 +100,11 @@ XSchemMac/make_app.sh            # -> XSchemMac/build/Xschem.app
 See [XSchemMac/README.md](XSchemMac/README.md) for the bundle layout, signing and how to
 give the app to someone else.
 
+CI builds this bundle on every push. For each `v*` tag it publishes the disk image on the
+fork's [Releases](https://github.com/thomaslima/xschem/releases) page, for Apple Silicon and
+the macOS version of the CI runner or later. The app is signed ad hoc, not notarized, so the
+first launch needs the Gatekeeper steps in `XSchemMac/README.md`.
+
 ---
 
 # X11 build with XQuartz
