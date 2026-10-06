@@ -27,7 +27,9 @@ set -eu
 
 usage() {
   cat <<EOF
-usage: $0 [-b binary] [-s source_tree] [-i bundle_id] [output.app]
+usage: $0 [-l] [-b binary] [-s source_tree] [-i bundle_id] [output.app]
+  -l  linked bundle: copy only the binary, which keeps using the Tcl/Tk, libraries and
+      share/xschem of the installation it was built for (used by the Homebrew formula)
   -b  xschem binary to package           (default: <source_tree>/src/xschem)
   -s  xschem source tree                 (default: parent of this script's dir)
   -i  CFBundleIdentifier                 (default: io.github.stefanschippers.xschem)
@@ -43,8 +45,10 @@ here=$(cd "$(dirname "$0")" && pwd -P)
 srctree=$(cd "$here/.." && pwd -P)
 bin=""
 bundle_id=io.github.stefanschippers.xschem
-while getopts b:s:i:h opt; do
+linked=0
+while getopts b:s:i:lh opt; do
   case $opt in
+    l) linked=1 ;;
     b) bin=$OPTARG ;;
     s) srctree=$(cd "$OPTARG" && pwd -P) ;;
     i) bundle_id=$OPTARG ;;
@@ -118,8 +122,8 @@ if [ -e "$app" ]; then
   rm -rf "$app"
 fi
 contents=$app/Contents
-mkdir -p "$contents/MacOS" "$contents/Frameworks" "$contents/Resources/lib" \
-  "$contents/Resources/licenses"
+mkdir -p "$contents/MacOS" "$contents/Resources/licenses"
+[ $linked = 1 ] || mkdir -p "$contents/Frameworks" "$contents/Resources/lib"
 macos=$contents/MacOS
 fw=$contents/Frameworks
 res=$contents/Resources
@@ -129,11 +133,13 @@ echo "make_app.sh: packaging $bin into $app"
 # ---------------------------------------------------------------------------
 # 1. Binary and the closure of its non-system dylibs. Every bundled library is
 #    named after its own install name and referenced as @rpath/<name>.
+#    A linked bundle gets the binary alone, with its install names unchanged.
 # ---------------------------------------------------------------------------
 bin=$(resolve "$bin")
 cp -X "$bin" "$macos/xschem-bin"
-printf '%s\t%s\n' "$bin" "$macos/xschem-bin" > "$work/files"   # original -> bundle copy
 : > "$work/libs"                                                 # real path -> name
+if [ $linked = 0 ]; then
+printf '%s\t%s\n' "$bin" "$macos/xschem-bin" > "$work/files"   # original -> bundle copy
 : > "$work/refs"                                                 # bundle copy, old name, new name
 n=1
 while :; do
@@ -175,11 +181,13 @@ for f in "$macos/xschem-bin" "$fw"/*.dylib; do
   done
 done
 install_name_tool -add_rpath @executable_path/../Frameworks "$macos/xschem-bin" 2>/dev/null
+fi
 
 # ---------------------------------------------------------------------------
 # 2. Tcl and Tk script libraries, from next to the bundled dylibs.
 #    lib/tcl8 holds the Tcl modules (msgcat, ...) that Tk loads.
 # ---------------------------------------------------------------------------
+if [ $linked = 0 ]; then
 tcl_real=$(awk -F'\t' '$2 ~ /^libtcl[0-9.]*\.dylib$/ { print $1 }' "$work/libs")
 tk_real=$(awk -F'\t' '$2 ~ /^libtk[0-9.]*\.dylib$/ { print $1 }' "$work/libs")
 [ -n "$tcl_real" ] && [ -n "$tk_real" ] || die "binary does not link libtcl and libtk dynamically"
@@ -193,12 +201,15 @@ for d in "$tcl_dir" "$tk_dir" "tcl$tcl_major"; do
     die "script library $d not found next to $(dirname "$tcl_real")"
   if [ -d "$src" ]; then ditto --norsrc --noextattr --noacl "$src" "$res/lib/$d"; fi
 done
+fi
 
 # ---------------------------------------------------------------------------
 # 3. xschem runtime files, laid out as 'make install' does under share/:
 #    share/xschem (XSCHEM_SHAREDIR) and share/doc/xschem. The file lists are
 #    read from the install targets of the Makefiles, so they stay in sync.
+#    A linked bundle uses the share/ directory of its installation instead.
 # ---------------------------------------------------------------------------
+if [ $linked = 0 ]; then
 share=$res/share
 mkdir -p "$share/xschem" "$share/doc/xschem"
 { sed -n '/^put \/local\/install_shares {/,/^}/p' "$srctree/src/Makefile.in" | sed '1d;$d'
@@ -259,6 +270,7 @@ if {[string match */Contents/Resources/share/xschem $XSCHEM_SHAREDIR]} {
   unset -nocomplain _bundle_libpath _p _tail
 }
 EOF
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Launcher (CFBundleExecutable), icon, Info.plist
@@ -266,8 +278,12 @@ EOF
 min_macos=$( (otool -l "$macos/xschem-bin"; for f in "$fw"/*.dylib; do otool -l "$f"; done) 2>/dev/null |
   awk '$1 == "minos" { print $2 }' | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1)
 [ -n "$min_macos" ] || die "cannot read the minimum macOS version from the binaries"
-cc -O2 -Wall -mmacosx-version-min="$min_macos" -DTCL_DIR="\"$tcl_dir\"" -DTK_DIR="\"$tk_dir\"" \
-  -o "$macos/xschem" "$here/launcher.c"
+if [ $linked = 1 ]; then
+  cc -O2 -Wall -mmacosx-version-min="$min_macos" -DLINKED -o "$macos/xschem" "$here/launcher.c"
+else
+  cc -O2 -Wall -mmacosx-version-min="$min_macos" -DTCL_DIR="\"$tcl_dir\"" -DTK_DIR="\"$tk_dir\"" \
+    -o "$macos/xschem" "$here/launcher.c"
+fi
 
 # The only full-size artwork in the tree is the 256x256 image in the Windows
 # installer icon; sizes above 256 are left out rather than upscaled.
@@ -295,6 +311,7 @@ printf 'APPL????' > "$contents/PkgInfo"
 # ---------------------------------------------------------------------------
 mkdir -p "$res/licenses/xschem"
 cp -X "$srctree/LICENSE" "$res/licenses/xschem/LICENSE"
+if [ $linked = 0 ]; then
 {
   echo "Libraries bundled in Xschem.app/Contents/Frameworks and where they came from."
   echo "Licence texts are in the directory named after each source package."
@@ -318,6 +335,7 @@ while IFS="$(printf '\t')" read -r real name; do
   done
   ls "$res/licenses/$pkg" | grep -qv sbom.spdx.json || warn "no licence text found in $keg"
 done < "$work/libs"
+fi
 
 # ---------------------------------------------------------------------------
 # 6. Ad-hoc signature, inside out (mandatory on Apple Silicon after
@@ -326,6 +344,7 @@ done < "$work/libs"
 chmod -R u+w,go-w "$app"     # Homebrew installs read-only files
 xattr -cr "$app"
 for f in "$fw"/*.dylib "$macos/xschem-bin" "$app"; do
+  [ -e "$f" ] || continue     # no dylibs in a linked bundle
   codesign --force --sign - --timestamp=none "$f" 2> "$work/codesign" ||
     { cat "$work/codesign" >&2; die "codesign failed on $f"; }
 done
@@ -334,7 +353,7 @@ codesign --verify --deep --strict "$app"
 find "$app" -type f | while IFS= read -r f; do
   case $(file -b "$f") in Mach-O*) echo "$f:"; otool -L "$f" 2>/dev/null | sed -n '2,$p'; rpaths "$f" ;; esac
 done > "$work/macho"
-if grep -E '/opt/homebrew|/opt/local|/usr/local' "$work/macho"; then
+if [ $linked = 0 ] && grep -E '/opt/homebrew|/opt/local|/usr/local' "$work/macho"; then
   die "bundle still references build-machine libraries (listed above)"
 fi
 if grep '^/.*:$' "$work/macho" | grep -v -e '/Contents/MacOS/' -e '/Contents/Frameworks/'; then
