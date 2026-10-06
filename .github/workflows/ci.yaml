@@ -23,3 +23,39 @@ jobs:
       with:
         name: xschem
         path: src/xschem
+
+  macos:
+
+    runs-on: macos-latest
+
+    name: macOS app bundle (Aqua Tk)
+
+    steps:
+    - name: Install dependencies
+      run: brew install tcl-tk@8 cairo jpeg-turbo bison
+    - name: Checkout source
+      uses: actions/checkout@v4
+    - name: configure
+      run: ./configure --aqua
+    - name: make
+      run: make
+    - name: Headless netlist
+      run: |
+        mkdir -p "$RUNNER_TEMP/netlist"
+        src/xschem -x -q -r -s -n -o "$RUNNER_TEMP/netlist" xschem_library/examples/cmos_inv.sch
+        test -s "$RUNNER_TEMP/netlist/cmos_inv.spice"
+    - name: Build Xschem.app
+      run: sh XSchemMac/make_app.sh
+    - name: Verify the bundle
+      run: |
+        codesign --verify --deep --strict XSchemMac/build/Xschem.app
+        ! otool -L XSchemMac/build/Xschem.app/Contents/MacOS/xschem-bin | grep -E '/opt/homebrew|/usr/local|/opt/local'
+        XSchemMac/build/Xschem.app/Contents/MacOS/xschem -x -q -r -s -n -o "$RUNNER_TEMP/bundle" xschem_library/examples/cmos_inv.sch
+        cmp "$RUNNER_TEMP/netlist/cmos_inv.spice" "$RUNNER_TEMP/bundle/cmos_inv.spice"
+    - name: Zip the bundle
+      run: ditto -c -k --keepParent XSchemMac/build/Xschem.app Xschem.app.zip
+    - name: Archive Xschem.app
+      uses: actions/upload-artifact@v4
+      with:
+        name: Xschem.app
+        path: Xschem.app.zip
