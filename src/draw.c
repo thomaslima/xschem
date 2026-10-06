@@ -2051,23 +2051,23 @@ void filledrect(int c, int what, double rectx1,double recty1,double rectx2,doubl
    if(xctx->draw_window) {
      if(e_a != -1) {
        XFillArc(display, xctx->window, gc, (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
      } else {
        XFillRectangle(display, xctx->window, gc, (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
    if(xctx->draw_pixmap) {
      if(e_a != -1) {
        XFillArc(display, xctx->save_pixmap, gc, (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
      } else {
        XFillRectangle(display, xctx->save_pixmap, gc,  (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
   }
@@ -2430,25 +2430,25 @@ void drawrect(int c, int what, double rectx1,double recty1,double rectx2,double 
    if(xctx->draw_window) {
      if(e_a != -1) {
        XDrawArc(display, xctx->window, xctx->gc[c], (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
      } else {
        XDrawRectangle(display, xctx->window, xctx->gc[c], (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
    if(xctx->draw_pixmap)
    {
      if(e_a != -1) {
        XDrawArc(display, xctx->save_pixmap, xctx->gc[c], (int)xx1, (int)yy1,
-       (unsigned int)xx2 - (unsigned int)xx1,
-       (unsigned int)yy2 - (unsigned int)yy1, e_a * 64, e_b * 64);
+       (unsigned int)(int)xx2 - (unsigned int)(int)xx1,
+       (unsigned int)(int)yy2 - (unsigned int)(int)yy1, e_a * 64, e_b * 64);
 
      } else {
        XDrawRectangle(display, xctx->save_pixmap, xctx->gc[c], (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
      }
    }
    if(dash || bus > 0.0 || bus == -1.0) {
@@ -2512,8 +2512,8 @@ void drawtemprect(GC gc, int what, double rectx1,double recty1,double rectx2,dou
 
    } else {
      XDrawRectangle(display, xctx->window, gc, (int)x1, (int)y1,
-       (unsigned int)x2 - (unsigned int)x1,
-       (unsigned int)y2 - (unsigned int)y1);
+       (unsigned int)(int)x2 - (unsigned int)(int)x1,
+       (unsigned int)(int)y2 - (unsigned int)(int)y1);
    }
   }
  }
@@ -5802,8 +5802,8 @@ void MyXCopyAreaDouble(Display* display, Drawable src, Drawable dest, GC gc,
   idx1=X_TO_SCREEN(dx1) - 2 * intlw;
   idy1=Y_TO_SCREEN(dy1) - 2 * intlw;
 
-  width = (unsigned int)isx2 - (unsigned int)isx1;
-  height = (unsigned int)isy2 - (unsigned int)isy1;
+  width = (unsigned int)(int)isx2 - (unsigned int)(int)isx1;
+  height = (unsigned int)(int)isy2 - (unsigned int)(int)isy1;
   #if !defined(__unix__)
   XCopyArea(display, src, dest, gc, (int)isx1, (int)isy1, width, height, (int)idx1, (int)idy1);
   #if HAS_CAIRO==1
