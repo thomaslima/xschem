@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template for Xschem.app/Contents/Info.plist, filled in by make_app.sh -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleDisplayName</key>
+  <string>Xschem</string>
+  <key>CFBundleName</key>
+  <string>Xschem</string>
+  <key>CFBundleExecutable</key>
+  <string>xschem</string>
+  <key>CFBundleIconFile</key>
+  <string>xschem.icns</string>
+  <key>CFBundleIdentifier</key>
+  <string>@BUNDLE_ID@</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleSignature</key>
+  <string>????</string>
+  <key>CFBundleShortVersionString</key>
+  <string>@SHORT_VERSION@</string>
+  <key>CFBundleVersion</key>
+  <string>@SHORT_VERSION@</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>xschem @VERSION@, Copyright (C) 1998-2026 Stefan Frederik Schippers. macOS packaging Copyright (C) 2026 Thomas Ferreira de Lima. GPL-2.0-or-later.</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>@MIN_MACOS@</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.developer-tools</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSSupportsAutomaticGraphicsSwitching</key>
+  <true/>
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Xschem Schematic</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Default</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>xschem.icns</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>@BUNDLE_ID@.schematic</string>
+      </array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>Xschem Symbol</string>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>LSHandlerRank</key>
+      <string>Default</string>
+      <key>CFBundleTypeIconFile</key>
+      <string>xschem.icns</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>@BUNDLE_ID@.symbol</string>
+      </array>
+    </dict>
+  </array>
+  <!-- Imported, not exported: other EDA tools (gschem, old KiCad, Eagle) also use .sch,
+       so Xschem declares the types without claiming ownership of the extensions. -->
+  <key>UTImportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>@BUNDLE_ID@.schematic</string>
+      <key>UTTypeDescription</key>
+      <string>Xschem Schematic</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.plain-text</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>sch</string>
+        </array>
+      </dict>
+    </dict>
+    <dict>
+      <key>UTTypeIdentifier</key>
+      <string>@BUNDLE_ID@.symbol</string>
+      <key>UTTypeDescription</key>
+      <string>Xschem Symbol</string>
+      <key>UTTypeConformsTo</key>
+      <array>
+        <string>public.plain-text</string>
+      </array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array>
+          <string>sym</string>
+        </array>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>
