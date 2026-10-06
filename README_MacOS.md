@@ -14,6 +14,38 @@ The native build draws through Tk's macOS (Aqua) backend. It needs neither XQuar
 X11 library, and all libraries come from Homebrew. `XSchemMac/AQUA_PORT.md` explains how it
 works, what was tested and what is known not to work.
 
+## Download the app
+
+Each release of this fork carries a ready-to-run `Xschem.app` on the
+[Releases](https://github.com/thomaslima/xschem/releases) page, as
+`Xschem-<version>-arm64.dmg`. The app is self-contained (Tcl/Tk, cairo and their libraries are
+inside), so it needs neither Homebrew nor XQuartz. It runs on Apple Silicon Macs with the macOS
+version given in the release notes or later; that is the version of the CI machine that built
+it.
+
+1. Download the `.dmg`, open it and drag `Xschem.app` to Applications.
+2. Remove the quarantine flag. The app is signed ad hoc, not notarized by Apple, so macOS
+   refuses to open a downloaded copy ("Apple could not verify ..."). Either run, in Terminal:
+
+   ```
+   xattr -dr com.apple.quarantine /Applications/Xschem.app
+   ```
+
+   or double-click Xschem, click Done (not Move to Trash), open System Settings > Privacy &
+   Security, click Open Anyway next to the message about Xschem, authenticate, and open
+   Xschem again, confirming with Open.
+
+   Browsers and other download tools mark downloaded files with the
+   `com.apple.quarantine` attribute, and Gatekeeper checks only files that carry it. Removing
+   it, or clicking Open Anyway, tells macOS to trust this copy of the app; do it only for a
+   download you trust. It is needed once per downloaded copy, including after each update.
+3. For PDF export, install Ghostscript (`brew install ghostscript`). Without it, PDF export
+   shows a dialog saying so and keeps the PostScript file.
+
+For the command line, run or link the launcher
+`/Applications/Xschem.app/Contents/MacOS/xschem` (not `xschem-bin` next to it), for example
+`ln -s /Applications/Xschem.app/Contents/MacOS/xschem ~/bin/xschem`.
+
 ## Install with Homebrew
 
 ```
@@ -99,6 +131,9 @@ XSchemMac/make_app.sh            # -> XSchemMac/build/Xschem.app
 
 See [XSchemMac/README.md](XSchemMac/README.md) for the bundle layout, signing and how to
 give the app to someone else.
+
+CI builds this bundle on every push and, for each `v*` tag, publishes it as a disk image on
+the Releases page (see "Download the app" above).
 
 ---
 
