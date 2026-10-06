@@ -59,167 +59,7 @@ static void my_cairo_fill(cairo_surface_t *src_surface, int x, int y, unsigned i
   cairo_surface_destroy(dest_surface); dest_surface = NULL;
 }
 #endif
-#ifdef XSCHEM_AQUA
-/* CoreGraphics prototypes: <CoreGraphics/CoreGraphics.h> is not strict C89 */
-extern void *CGBitmapContextGetData(void *context);
-extern size_t CGBitmapContextGetBytesPerRow(void *context);
-extern size_t CGBitmapContextGetWidth(void *context);
-extern size_t CGBitmapContextGetHeight(void *context);
-
-/* there is always a window server */
-int xserver_ok(void)
-{
-  return 1;
-}
-
-#if TK_MAJOR_VERSION < 9
-int XDrawRectangles(Display *d, Drawable w, GC gc, XRectangle *r, int n)
-{
-  int i;
-  for(i = 0; i < n; ++i) XDrawRectangle(d, w, gc, r[i].x, r[i].y, r[i].width, r[i].height);
-  return 0;
-}
-
-int XDrawArcs(Display *d, Drawable w, GC gc, XArc *a, int n)
-{
-  int i;
-  for(i = 0; i < n; ++i) XDrawArc(d, w, gc, a[i].x, a[i].y, a[i].width, a[i].height, a[i].angle1, a[i].angle2);
-  return 0;
-}
-
-int XFillArcs(Display *d, Drawable w, GC gc, XArc *a, int n)
-{
-  int i;
-  for(i = 0; i < n; ++i) XFillArc(d, w, gc, a[i].x, a[i].y, a[i].width, a[i].height, a[i].angle1, a[i].angle2);
-  return 0;
-}
-#endif
-
-/* front buffers, one per window xschem draws on (see xschem.h) */
-#define AQUA_MAX_FRONT 64
-static struct {
-  Window win;
-  Pixmap front;
-  int w, h;
-  int dirty; /* front buffer has changes not yet copied to window */
-} aqua_front[AQUA_MAX_FRONT];
-static int aqua_nfront = 0;
-
-static int aqua_find(Drawable d)
-{
-  int i;
-  for(i = 0; i < aqua_nfront; ++i) if(aqua_front[i].win == d) return i;
-  return -1;
-}
-
-/* create the front buffer of a window or resize it to the window size.
- * Return 0 if win is not a (live) window */
-int aqua_front_sync(Window win)
-{
-  Tk_Window tkwin = Tk_IdToWindow(display, win);
-  int i = aqua_find(win), w, h;
-
-  if(!tkwin) {
-    if(i >= 0) { /* window is gone, its id may be reused */
-      Tk_FreePixmap(display, aqua_front[i].front);
-      aqua_front[i] = aqua_front[--aqua_nfront];
-    }
-    return 0;
-  }
-  w = Tk_Width(tkwin) > 0 ? Tk_Width(tkwin) : 1;
-  h = Tk_Height(tkwin) > 0 ? Tk_Height(tkwin) : 1;
-  if(i < 0) {
-    if(aqua_nfront >= AQUA_MAX_FRONT) return 0;
-    i = aqua_nfront++;
-    aqua_front[i].win = win;
-    aqua_front[i].front = 0;
-    aqua_front[i].dirty = 0;
-  }
-  if(!aqua_front[i].front || aqua_front[i].w != w || aqua_front[i].h != h) {
-    if(aqua_front[i].front) Tk_FreePixmap(display, aqua_front[i].front);
-    aqua_front[i].front = Tk_GetPixmap(display, win, w, h, Tk_Depth(tkwin));
-    aqua_front[i].w = w;
-    aqua_front[i].h = h;
-  }
-  return 1;
-}
-
-/* drawable to use for Xlib drawing calls: front buffer if d is a window, d itself if a pixmap */
-Drawable aqua_drawable(Drawable d)
-{
-  int i;
-  if(!Tk_IdToWindow(display, d)) {
-    if(aqua_find(d) >= 0) aqua_front_sync(d); /* drop stale entry */
-    return d;
-  }
-  i = aqua_find(d);
-  if(i < 0) {
-    if(!aqua_front_sync(d)) return d;
-    i = aqua_find(d);
-  }
-  aqua_front[i].dirty = 1;
-  return aqua_front[i].front;
-}
-
-/* copy front buffer to window. Lands if called while Tk handles an Expose event, otherwise
- * Tk drops the copy and schedules a redraw, that comes back here as an Expose event */
-void aqua_present(Window win)
-{
-  static GC gc = NULL;
-  int i = aqua_find(win), ret;
-  if(i < 0 || !Tk_IdToWindow(display, win)) return;
-  if(!gc) gc = XCreateGC(display, win, 0L, NULL);
-  aqua_front[i].dirty = 0;
-  ret = (XCopyArea)(display, aqua_front[i].front, win, gc, 0, 0,
-              (unsigned int)aqua_front[i].w, (unsigned int)aqua_front[i].h, 0, 0);
-  dbg(1, ("aqua_present(): %dx%d, XCopyArea returned %d\n", aqua_front[i].w, aqua_front[i].h, ret));
-}
-
-/* present all windows with pending changes, called after every xschem command */
-void aqua_flush(void)
-{
-  int i;
-  for(i = 0; i < aqua_nfront; ++i) if(aqua_front[i].dirty) aqua_present(aqua_front[i].win);
-}
-
-/* no tiled fills in Aqua Tk, xschem always runs with fix_broken_tiled_fill */
-int XSetTile(Display *d, GC gc, Pixmap p)
-{
-  return 0;
-}
-
-#if HAS_CAIRO==1
-/* A Tk pixmap is a CGBitmapContext with premultiplied ARGB32 pixels in host byte order,
- * which is cairo's CAIRO_FORMAT_ARGB32. Wrap its memory so cairo and the Xlib emulation
- * draw on the same pixels. The surface must be destroyed before the pixmap is freed. */
-static void *aqua_cg_context(Drawable d)
-{
-#if TK_MAJOR_VERSION >= 9
-  return Tk_MacOSXGetCGContextForDrawable(d);
-#else
-  /* libtk 8.6 does not export Tk_MacOSXGetCGContextForDrawable(), it is only in the stubs table */
-  static const struct TkPlatStubs *plat = NULL;
-  if(!plat) {
-    ClientData cd = NULL;
-    if(Tcl_PkgPresentEx(interp, "Tk", NULL, 0, &cd) && cd) plat = ((const TkStubs *)cd)->hooks->tkPlatStubs;
-  }
-  return plat ? plat->tk_MacOSXGetCGContextForDrawable(d) : NULL;
-#endif
-}
-
-cairo_surface_t *aqua_pixmap_surface(Pixmap pixmap, int width, int height)
-{
-  void *cg = aqua_cg_context(pixmap);
-  if(!cg || !CGBitmapContextGetData(cg) ||
-     (int)CGBitmapContextGetWidth(cg) < width || (int)CGBitmapContextGetHeight(cg) < height) {
-    info("aqua_pixmap_surface(): no bitmap for pixmap, text will not be visible\n");
-    return cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
-  }
-  return cairo_image_surface_create_for_data((unsigned char *)CGBitmapContextGetData(cg),
-           CAIRO_FORMAT_ARGB32, width, height, (int)CGBitmapContextGetBytesPerRow(cg));
-}
-#endif
-#elif defined(__unix__)
+#if defined(__unix__) && !defined(XSCHEM_AQUA) /* Aqua: xserver_ok() in aqua.m */
 int xserver_ok(void)
 {
   int has_x = 1;
@@ -293,7 +133,7 @@ void print_image()
   {
     cairo_surface_t *png_sfc;
     #if defined(XSCHEM_AQUA)
-    png_sfc = aqua_pixmap_surface(xctx->save_pixmap, xctx->xrect[0].width, xctx->xrect[0].height);
+    png_sfc = aqua_pixmap_surface(xctx->save_pixmap);
     #elif defined(__unix__)
     png_sfc = cairo_xlib_surface_create(display, xctx->save_pixmap, visual,
                xctx->xrect[0].width, xctx->xrect[0].height);
@@ -5456,7 +5296,7 @@ void svg_embedded_graph(FILE *fd, int i, double rx1, double ry1, double rx2, dou
   draw_graph(i, 8 + (xctx->graph_flags & (4 | 2 | 128 | 256)), &xctx->graph_struct, NULL);
 
 #if defined(XSCHEM_AQUA)
-  png_sfc = aqua_pixmap_surface(xctx->save_pixmap, xctx->xrect[0].width, xctx->xrect[0].height);
+  png_sfc = aqua_pixmap_surface(xctx->save_pixmap);
 #elif defined(__unix__)
   png_sfc = cairo_xlib_surface_create(display, xctx->save_pixmap, visual,
                xctx->xrect[0].width, xctx->xrect[0].height);

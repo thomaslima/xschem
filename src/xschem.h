@@ -149,7 +149,7 @@ extern char win_temp_dir[PATH_MAX];
 #include <tcl.h>
 #include <tk.h>
 #ifdef XSCHEM_AQUA
-#include <tkMacOSX.h> /* Tk_MacOSXGetCGContextForDrawable() */
+#include "aqua.h" /* display layer of the Aqua build, in aqua.m */
 #endif
 
 #define _ALLOC_ID_ 0 /* to be replaced with unique IDs in my_*() allocations for memory tracking
@@ -1859,43 +1859,6 @@ extern void get_square(double x, double y, int *xx, int *yy);
 extern const char *create_tmpdir(char *prefix);
 extern FILE *open_tmpfile(char *prefix, char *suffix, char **filename);
 extern void create_ps(char** psfile, int what, int fullzoom, int eps);
-#ifdef XSCHEM_AQUA
-/* Aqua Tk (8.6) only lets a window be painted while it handles a redraw request.
- * xschem draws on its window at any time (rubber bands, selection, crosshair), so
- * every Xlib drawing call aimed at a window is redirected to an off-screen front
- * buffer, that is copied to the window by aqua_present() / aqua_flush().
- * Pixmap drawables are passed through unchanged. */
-extern Drawable aqua_drawable(Drawable d);
-extern int aqua_front_sync(Window win);
-extern void aqua_present(Window win);
-extern void aqua_flush(void);
-#define XDrawLine(d, w, gc, x1, y1, x2, y2) (XDrawLine)(d, aqua_drawable(w), gc, x1, y1, x2, y2)
-#define XDrawLines(d, w, gc, p, n, m) (XDrawLines)(d, aqua_drawable(w), gc, p, n, m)
-#define XDrawSegments(d, w, gc, s, n) (XDrawSegments)(d, aqua_drawable(w), gc, s, n)
-#define XDrawPoints(d, w, gc, p, n, m) (XDrawPoints)(d, aqua_drawable(w), gc, p, n, m)
-#define XDrawRectangle(d, w, gc, x, y, wd, ht) (XDrawRectangle)(d, aqua_drawable(w), gc, x, y, wd, ht)
-#define XDrawArc(d, w, gc, x, y, wd, ht, a1, a2) (XDrawArc)(d, aqua_drawable(w), gc, x, y, wd, ht, a1, a2)
-#define XFillArc(d, w, gc, x, y, wd, ht, a1, a2) (XFillArc)(d, aqua_drawable(w), gc, x, y, wd, ht, a1, a2)
-#define XFillRectangle(d, w, gc, x, y, wd, ht) (XFillRectangle)(d, aqua_drawable(w), gc, x, y, wd, ht)
-#define XFillRectangles(d, w, gc, r, n) (XFillRectangles)(d, aqua_drawable(w), gc, r, n)
-#define XFillPolygon(d, w, gc, p, n, s, m) (XFillPolygon)(d, aqua_drawable(w), gc, p, n, s, m)
-#define XCopyArea(d, s, w, gc, sx, sy, wd, ht, dx, dy) \
-        (XCopyArea)(d, aqua_drawable(s), aqua_drawable(w), gc, sx, sy, wd, ht, dx, dy)
-/* Xlib calls missing in the Aqua Tk emulation layer, provided in draw.c */
-#if TK_MAJOR_VERSION < 9
-extern int XDrawRectangles(Display *d, Drawable w, GC gc, XRectangle *r, int n);
-extern int XDrawArcs(Display *d, Drawable w, GC gc, XArc *a, int n);
-extern int XFillArcs(Display *d, Drawable w, GC gc, XArc *a, int n);
-#else
-#define XDrawRectangles(d, w, gc, r, n) (XDrawRectangles)(d, aqua_drawable(w), gc, r, n)
-#define XDrawArcs(d, w, gc, a, n) (XDrawArcs)(d, aqua_drawable(w), gc, a, n)
-#define XFillArcs(d, w, gc, a, n) (XFillArcs)(d, aqua_drawable(w), gc, a, n)
-#endif
-extern int XSetTile(Display *d, GC gc, Pixmap p);
-#if HAS_CAIRO==1
-extern cairo_surface_t *aqua_pixmap_surface(Pixmap pixmap, int width, int height);
-#endif
-#endif
 extern void MyXCopyArea(Display* display, Drawable src, Drawable dest, GC gc, int src_x, int src_y, unsigned int width, unsigned int height, int dest_x, int dest_y);
 extern int win_regexec(const char *options, const char *pattern, const char *name);
 #endif /*CADGLOBALS */

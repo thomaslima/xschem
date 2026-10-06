@@ -28,9 +28,13 @@
 static int init_done=0; /* 20150409 to avoid double call by Xwindows close and TclExitHandler */
 static XSetWindowAttributes winattr;
 static Tk_Window  tkwindow, mainwindow;
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
 static XWMHints *hints_ptr;
+#endif
 static Window topwindow;
+#if defined(__unix__) && !defined(XSCHEM_AQUA)
 static XColor xcolor_exact,xcolor;
+#endif
 typedef int myproc(
              ClientData clientData,
              Tcl_Interp *interp,
@@ -241,8 +245,8 @@ void windowid(const char *win_path)
 
 static int err(Display *display, XErrorEvent *xev)
 {
- int l=250;
 #if defined(__unix__) && !defined(XSCHEM_AQUA)
+ int l=250;
  char s[1024];  /* overflow safe 20161122 */
  XGetErrorText(display, xev->error_code, s,l);
  dbg(1, ("err(): Err %d :%s maj=%d min=%d\n", xev->error_code, s, xev->request_code,
@@ -1224,6 +1228,12 @@ void toggle_fullscreen(const char *topwin)
     if(xctx->menu_removed & 2) tclvareval("toolbar_show ", xctx->top_path, NULL);
     xctx->menu_removed=0;
   }
+  #ifdef XSCHEM_AQUA
+  /* no EWMH window manager on Aqua: use the native fullscreen of the toplevel */
+  xctx->pending_fullzoom = (fs == 2) ? 2 : 1;
+  tclvareval("wm attributes ", toplevel, " -fullscreen ", fs ? "1" : "0", NULL);
+  (void)fullscr; (void)normal; (void)window_state; /* unused on Aqua */
+  #else
   if(fs == 1) {
     xctx->pending_fullzoom=1;
     window_state(display , parent_id,fullscr); /* full screen with menus and toolbars */
@@ -1238,6 +1248,7 @@ void toggle_fullscreen(const char *topwin)
      * pending_fullzoom does not work on the last correct ConfigureNotify event,
      * so we zoom_full() again */
   }
+  #endif
   zoom_full(1, 0, 1 + 2 * tclgetboolvar("zoom_full_center"), 0.97); /* draw */
 }
 
@@ -2920,8 +2931,7 @@ static void resetcairo(int create, int clear, int force_or_resize)
     cairo_font_options_set_hint_style(options, CAIRO_HINT_STYLE_SLIGHT);
     /***** Create Cairo save buffer drawing area *****/
     #if defined(XSCHEM_AQUA)
-    xctx->cairo_save_sfc = aqua_pixmap_surface(xctx->save_pixmap,
-         xctx->xrect[0].width, xctx->xrect[0].height);
+    xctx->cairo_save_sfc = aqua_pixmap_surface(xctx->save_pixmap);
     #elif defined(__unix__)
     xctx->cairo_save_sfc = cairo_xlib_surface_create(display, xctx->save_pixmap,
          visual, xctx->xrect[0].width, xctx->xrect[0].height);
@@ -2946,10 +2956,9 @@ static void resetcairo(int create, int clear, int force_or_resize)
     cairo_set_line_cap(xctx->cairo_save_ctx, CAIRO_LINE_CAP_ROUND);
     /***** Create Cairo main drawing window structures *****/
     #if defined(XSCHEM_AQUA)
-    /* cairo draws "on the window" through its front buffer */
+    /* the window surface is the front buffer of the window, made here at the window size */
     aqua_front_sync(xctx->window);
-    xctx->cairo_sfc = aqua_pixmap_surface(aqua_drawable(xctx->window),
-        xctx->xrect[0].width, xctx->xrect[0].height);
+    xctx->cairo_sfc = aqua_pixmap_surface(aqua_drawable(xctx->window));
     #elif defined(__unix__)
     xctx->cairo_sfc = cairo_xlib_surface_create(display, xctx->window, visual,
         xctx->xrect[0].width, xctx->xrect[0].height);
@@ -2995,7 +3004,7 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
       height = h;
       status = 1;
     } else {
-      #if defined(XSCHEM_AQUA)
+      #if defined(XSCHEM_AQUA) /* Aqua Tk has no XGetWindowAttributes() */
       status = tkwin ? 1 : 0;
       if(status) {
         width = Tk_Width(tkwin);
@@ -3037,7 +3046,9 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
         xctx->xrect[0].height = (unsigned short) height;
         if(clear_pixmap) {
           resetcairo(0, 1, 1); /* create, clear, force */
-          #if defined(__unix__) && !defined(XSCHEM_AQUA)
+          #if defined(XSCHEM_AQUA)
+          aqua_free_pixmap(xctx->save_pixmap);
+          #elif defined(__unix__)
           XFreePixmap(display,xctx->save_pixmap);
           #else
           Tk_FreePixmap(display, xctx->save_pixmap);
@@ -3049,7 +3060,11 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
           XGCValues gcv;
           unsigned long gcvm;
 
-          #if defined(__unix__) && !defined(XSCHEM_AQUA)
+          #if defined(XSCHEM_AQUA)
+          /* at the window backing scale, at 1x if w and h are given (printing at a set size) */
+          xctx->save_pixmap = aqua_create_pixmap(xctx->window,
+             xctx->xrect[0].width, xctx->xrect[0].height, screendepth, !(w && h));
+          #elif defined(__unix__)
           xctx->save_pixmap = XCreatePixmap(display, xctx->window,
              xctx->xrect[0].width, xctx->xrect[0].height, screendepth);
           #else
@@ -3095,11 +3110,25 @@ void resetwin(int create_pixmap, int clear_pixmap, int force, int w, int h)
 }
 
 #ifdef XSCHEM_AQUA
-/* every drawing is done inside a xschem command: show its result when the command ends */
+/* The 'xschem' command on Aqua. All drawing happens inside xschem commands (events arrive
+ * as 'xschem callback'), into front buffers that Aqua Tk only shows when they are presented:
+ * present them when the outermost command ends (commands nest through Tcl callbacks).
+ * Before that, save_pixmap is remade if its scale does not match the window: printing at
+ * a set size leaves it at 1x, or the window moved to a display with another backing scale.
+ * The Expose case of callback() does the same for the window being exposed. */
 static int xschem_and_present(ClientData clientdata, Tcl_Interp *interp, int argc, const char * argv[])
 {
-  int ret = xschem(clientdata, interp, argc, argv);
-  if(has_x) aqua_flush();
+  int ret;
+  aqua_nesting(1);
+  ret = xschem(clientdata, interp, argc, argv);
+  if(has_x && aqua_nesting(-1) == 0) {
+    if(xctx && xctx->window && xctx->save_pixmap &&
+       aqua_scale_mismatch(xctx->window, xctx->save_pixmap)) {
+      resetwin(1, 1, 1, 0, 0);
+      draw();
+    }
+    aqua_flush();
+  }
   return ret;
 }
 #endif
@@ -3155,6 +3184,16 @@ int Tcl_AppInit(Tcl_Interp *inter)
  Tcl_Init(interp);
  if(has_x) {
    XSetErrorHandler(err);
+   #ifdef XSCHEM_AQUA
+   /* Tk_Init() of Aqua Tk opens a console window when stdin is closed or /dev/null
+    * (Finder launch, background start) and no startup script is set. Set a dummy one
+    * for the call and clear it, as Tk_Main() would run it after this function */
+   if(!Tcl_GetStartupScript(NULL)) {
+     Tcl_SetStartupScript(Tcl_NewStringObj("xschem", -1), NULL);
+     Tk_Init(interp);
+     Tcl_SetStartupScript(NULL, NULL);
+   } else
+   #endif
    Tk_Init(interp);
    tclsetvar("has_x","1");
  }
@@ -3640,9 +3679,6 @@ int Tcl_AppInit(Tcl_Interp *inter)
 
  my_strncpy(xctx->plotfile, cli_opt_plotfile, S(xctx->plotfile));
  xctx->draw_window = tclgetintvar("draw_window");
- #ifdef XSCHEM_AQUA
- xctx->draw_window = 0; /* always draw on save_pixmap and copy to window */
- #endif
  xctx->only_probes = tclgetintvar("only_probes");
  xctx->intuitive_interface = tclgetboolvar("intuitive_interface");
 
@@ -3711,6 +3747,9 @@ int Tcl_AppInit(Tcl_Interp *inter)
        return TCL_ERROR;
     }
     display = Tk_Display(mainwindow);
+    #ifdef XSCHEM_AQUA
+    aqua_init(interp, display, &debug_var);
+    #endif
 
     #if 0
     #ifdef HAS_XCB
@@ -4015,6 +4054,10 @@ int Tcl_AppInit(Tcl_Interp *inter)
  for(; i < cli_opt_argc; ++i) {
    tclvareval("xschem load_new_window ",  cli_opt_argv[i], NULL);
  }
+ #ifdef XSCHEM_AQUA
+ /* files sent by Finder (::tk::mac::OpenDocument) while starting up */
+ if(has_x) tcleval("aqua_open_pending");
+ #endif
 
  /* Execute tcl script given on command line with --command */
  if(cli_opt_tcl_post_command) {

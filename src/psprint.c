@@ -330,7 +330,7 @@ static int ps_embedded_graph(int i, double rx1, double ry1, double rx2, double r
 
   dbg(1, ("width=%d, rwi=%d height=%d rhi=%d\n", xctx->xrect[0].width, rwi, xctx->xrect[0].height, rhi));
   #if defined(XSCHEM_AQUA)
-  png_sfc = aqua_pixmap_surface(xctx->save_pixmap, xctx->xrect[0].width, xctx->xrect[0].height);
+  png_sfc = aqua_pixmap_surface(xctx->save_pixmap);
   #elif defined(__unix__)
   png_sfc = cairo_xlib_surface_create(display, xctx->save_pixmap, visual,
      xctx->xrect[0].width, xctx->xrect[0].height);

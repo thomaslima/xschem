@@ -5659,7 +5659,9 @@ int xschem(ClientData clientdata, Tcl_Interp *interp, int argc, const char * arg
             xctx->draw_window=atoi(argv[3]);
           }
           else if(!strcmp(argv[2], "fix_broken_tiled_fill")) { /* alternate drawing method for broken GPUs */
+            #ifndef XSCHEM_AQUA /* Aqua Tk has no tiled fills: the setting stays at 1 */
             fix_broken_tiled_fill = atoi(argv[3]);
+            #endif
           }
           else if(!strcmp(argv[2], "fix_mouse_coord")) { /* fix for wrong mouse coords in RDP software */
             fix_mouse_coord = atoi(argv[3]);
