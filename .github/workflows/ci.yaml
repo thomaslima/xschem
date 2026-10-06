@@ -10,10 +10,21 @@ jobs:
     name: Compilation
 
     steps:
-    - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install -y flex bison gawk tcl tcl-dev tk tk-dev libcairo2 libcairo2-dev xcb libxcb1 libxcb1-dev libxrender-dev libxpm-dev libxcb-render0-dev libx11-xcb1 libx11-xcb-dev
     - name: Checkout source
       uses: actions/checkout@v4
+    - name: Cache apt packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.apt-cache
+        key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/ci.yaml') }}
+        restore-keys: apt-${{ runner.os }}-
+    - name: Install dependencies
+      # the .deb files go to a cached directory, so only the package index and new
+      # versions are downloaded on later runs
+      run: |
+        mkdir -p ~/.apt-cache
+        sudo apt-get update
+        sudo apt-get -o Dir::Cache::archives=$HOME/.apt-cache install -y flex bison gawk tcl tcl-dev tk tk-dev libcairo2 libcairo2-dev xcb libxcb1 libxcb1-dev libxrender-dev libxpm-dev libxcb-render0-dev libx11-xcb1 libx11-xcb-dev
     - name: configure
       run: ./configure
     - name: make
