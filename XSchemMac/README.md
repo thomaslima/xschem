@@ -21,6 +21,20 @@ The script needs the Xcode command line tools (`cc`, `otool`, `install_name_tool
 `make`; the file lists for the runtime data are read from the `install` targets of the
 Makefiles.
 
+## Linked bundle
+
+```
+XSchemMac/make_app.sh -l -b <prefix>/bin/xschem <prefix>/Xschem.app
+```
+
+With `-l` the bundle holds only the binary, the launcher, `Info.plist`, the icon and xschem's
+licence (about 1 MB). The binary keeps loading Tcl/Tk, cairo and libjpeg from the
+installation it was built against, and keeps the `XSCHEM_SHAREDIR` it was configured with,
+so it must come from `make install` and only works on the Mac that has that installation.
+The launcher is built with `-DLINKED`: it sets no Tcl, Tk or xschem paths and only extends
+`PATH` (see below). The Homebrew formula `xschem-mac` uses this mode, so that Finder, the
+Dock and file associations work for a Homebrew-built xschem.
+
 ## What is in the bundle
 
 | Path in `Contents/` | Content |

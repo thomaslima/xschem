@@ -28,7 +28,10 @@
  * binary (Contents/MacOS/xschem-bin). exec keeps the process id, so the
  * process Launch Services started is the one that receives Apple events and
  * owns the Dock icon.
- * TCL_DIR and TK_DIR are passed by make_app.sh (for example "tcl8.6"). */
+ * TCL_DIR and TK_DIR are passed by make_app.sh (for example "tcl8.6").
+ * A linked bundle (make_app.sh -l, used by the Homebrew formula) holds no libraries or
+ * script files of its own; built with -DLINKED, the launcher leaves those paths to the
+ * binary and only extends PATH. */
 
 #include <mach-o/dyld.h>
 #include <limits.h>
@@ -39,12 +42,14 @@
 
 static char contents[PATH_MAX];
 
+#ifndef LINKED
 static void set_bundle_path(const char *var, const char *rel)
 {
   char buf[PATH_MAX];
   snprintf(buf, sizeof(buf), "%s/%s", contents, rel);
   setenv(var, buf, 1);
 }
+#endif
 
 /* append dir to PATH unless it is already there */
 static void append_path(const char *dir)
@@ -78,9 +83,11 @@ int main(int argc, char **argv)
     slash = strrchr(contents, '/');
     if(slash) *slash = '\0';
   }
+#ifndef LINKED
   set_bundle_path("TCL_LIBRARY", "Resources/lib/" TCL_DIR);
   set_bundle_path("TK_LIBRARY", "Resources/lib/" TK_DIR);
   set_bundle_path("XSCHEM_SHAREDIR", "Resources/share/xschem");
+#endif
   /* apps started from the Finder get PATH=/usr/bin:/bin:/usr/sbin:/sbin: let xschem find
    * ps2pdf, ngspice, gaw ... installed by Homebrew (Apple silicon, Intel) */
   append_path("/opt/homebrew/bin");

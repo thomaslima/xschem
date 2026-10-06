@@ -14,6 +14,25 @@ The native build draws through Tk's macOS (Aqua) backend. It needs neither XQuar
 X11 library, and all libraries come from Homebrew. `XSchemMac/AQUA_PORT.md` explains how it
 works, what was tested and what is known not to work.
 
+## Install with Homebrew
+
+```
+brew install thomaslima/tap/xschem-mac
+```
+
+The formula builds this fork from source against Homebrew's `tcl-tk@8`, cairo and
+jpeg-turbo, installs Ghostscript for PDF export, and puts `xschem` on `PATH`. It also builds
+a small `Xschem.app` (a linked bundle, see `XSchemMac/README.md`) for starting xschem from
+the Finder or the Dock. To show it in Applications:
+
+```
+ln -sf "$(brew --prefix)/opt/xschem-mac/Xschem.app" /Applications/Xschem.app
+```
+
+The link goes through Homebrew's `opt` directory, so it keeps working across upgrades.
+`brew install --HEAD thomaslima/tap/xschem-mac` builds the latest `main` instead of the last
+release. The rest of this section builds the same thing by hand.
+
 ## Prerequisites
 Install the Xcode command line tools (`xcode-select --install`) and Homebrew (https://brew.sh),
 then the required packages:
