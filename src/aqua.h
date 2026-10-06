@@ -56,6 +56,7 @@ extern int aqua_fill_arc(Display *display, Drawable d, GC gc, int x, int y, unsi
 extern void aqua_present(Window win);
 extern int aqua_nesting(int delta);
 extern void aqua_flush(void);
+extern void aqua_activate(void);
 
 extern cairo_font_face_t *aqua_toy_font_face(const char *family, cairo_font_slant_t slant,
                                              cairo_font_weight_t weight);

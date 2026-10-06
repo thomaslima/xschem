@@ -130,6 +130,18 @@ void aqua_init(Tcl_Interp *interp, Display *display, int *debug_level)
   if(s) aqua_forced_scale = atof(s);
 }
 
+/* A process started from a shell is not launched as an application by Launch Services, so
+ * macOS leaves it inactive and its window behind the terminal. Bring it to the front once at
+ * startup, as a Finder launch does. The cooperative -[NSApplication activate] of macOS 14 is
+ * ignored in that case; -activateIgnoringOtherApps: still works (macOS 26). */
+void aqua_activate(void)
+{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+  [NSApp activateIgnoringOtherApps:YES];
+#pragma clang diagnostic pop
+}
+
 /* pixels per point of the display a window is on */
 static double window_scale(Window win)
 {

@@ -399,6 +399,12 @@ remaps are not translated, section 8).
   and no console is opened, `TkpInit()` redirects stdout and stderr to `/dev/null`, so a GUI
   run started with `</dev/null` from a terminal prints nothing, including `-d` debug output
   (from reading the Tk source; xschem already does the same itself for a background start).
+- **Coming to the front.** A process started from a shell is not launched by Launch Services,
+  so macOS leaves it inactive, with its window behind the terminal. After the files of the
+  command line are loaded, `Tcl_AppInit()` calls `aqua_activate()`, which calls
+  `-[NSApplication activateIgnoringOtherApps:]` once. The cooperative `-activate` of macOS 14
+  is ignored in that case: started from a pseudo-terminal on macOS 26, the application had no
+  keyboard focus with it and focus on `.drw` with the older call.
 - **Fullscreen.** `toggle_fullscreen()` uses `wm attributes -fullscreen` instead of EWMH
   messages. States 1 and 2 both turn native fullscreen on and state 0 turns it off; state 2
   also hides the menu, toolbar, tabs and status bar through the shared code above the new

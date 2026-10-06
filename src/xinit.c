@@ -4056,7 +4056,10 @@ int Tcl_AppInit(Tcl_Interp *inter)
  }
  #ifdef XSCHEM_AQUA
  /* files sent by Finder (::tk::mac::OpenDocument) while starting up */
- if(has_x) tcleval("aqua_open_pending");
+ if(has_x) {
+   tcleval("aqua_open_pending");
+   aqua_activate();
+ }
  #endif
 
  /* Execute tcl script given on command line with --command */
